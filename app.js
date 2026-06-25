@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch20d-money-plain-english';
+  const VERSION = 'v2026.06.25-patch21-snapshot-download-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -572,15 +572,40 @@
     return {meta:{format:'HTCC_PUBLIC_LEDGER_SNAPSHOT_V2',publishedAt:new Date().toISOString(),rowCount:rows.length,latestTxn:s.lastTxn,latestDate:s.lastDate,summary:buildMemberSummary(),notice:'Read-only member dashboard snapshot. Public if hosted on public GitHub Pages.'},columns:TXN_COLUMNS,transactions:rows};
   }
   function downloadPublicSnapshot(){
-    if(!liveLedger.loaded || !liveLedger.transactions.length){alert('Load the workbook before publishing a member snapshot.'); return;}
-    if(!connection.isManager){alert('Only the manager account can publish the member snapshot.'); return;}
-    const snapshot=buildPublicSnapshot();
-    const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download='public-ledger.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+    try{
+      if(!liveLedger.loaded || !liveLedger.transactions.length){alert('Load the workbook before publishing a member snapshot.'); return;}
+      if(!connection.isManager){alert('Only the manager account can publish the member snapshot.'); return;}
+      const snapshot=buildPublicSnapshot();
+      const json=JSON.stringify(snapshot,null,2);
+      const blob=new Blob([json],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='public-ledger.json';
+      a.rel='noopener';
+      a.style.display='none';
+      document.body.appendChild(a);
+      a.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+      setTimeout(()=>{try{URL.revokeObjectURL(url);}catch(_){ } try{a.remove();}catch(_){ }},4000);
+      showSnapshotFallback(json,url);
+    }catch(e){
+      console.error('Snapshot download failed',e);
+      alert('Snapshot download failed: '+(e.message||String(e))+'. A copy/paste fallback will be shown if possible.');
+    }
+  }
+  function showSnapshotFallback(json,url){
+    const btn=$('#publishSnapshotBtn');
+    if(!btn) return;
+    let box=$('#snapshotDownloadFallback');
+    if(!box){
+      box=document.createElement('div');
+      box.id='snapshotDownloadFallback';
+      box.className='notice';
+      btn.closest('.card')?.appendChild(box);
+    }
+    box.innerHTML=`<b>Snapshot ready:</b> if your browser did not download automatically, use the backup link below or copy the JSON into <b>data/public-ledger.json</b> in GitHub.<p><a class="btn small" download="public-ledger.json" href="${url}">Download backup link</a> <button class="btn small" id="copySnapshotJsonBtn">Copy JSON</button></p><textarea id="snapshotJsonText" style="width:100%;min-height:180px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px">${escapeHtml(json)}</textarea>`;
+    const copy=$('#copySnapshotJsonBtn');
+    if(copy) copy.onclick=async()=>{try{await navigator.clipboard.writeText(json); alert('Snapshot JSON copied.');}catch(e){const t=$('#snapshotJsonText'); if(t){t.focus(); t.select();} alert('Copy blocked by browser. The JSON box is selected so you can copy it manually.');}};
   }
 
 
