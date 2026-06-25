@@ -2,6 +2,7 @@
   let msalApp = null;
   let activeAccount = null;
   let accessToken = null;
+  let profile = null;
 
   function cfg(){ return window.HTCC_CONFIG || {}; }
   function graphMode(){ const c = cfg(); return c.authMode === 'graph' || c.graphEnabled === true; }
@@ -17,7 +18,7 @@
         authority: c.authority || ('https://login.microsoftonline.com/' + (c.tenantId || 'consumers')),
         redirectUri: c.redirectUri
       },
-      cache: { cacheLocation: 'sessionStorage' }
+      cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
     });
     return msalApp;
   }
@@ -26,6 +27,8 @@
     const c = cfg();
     const app = getApp();
     const scopes = c.scopes || ['User.Read','Files.ReadWrite'];
+    const accounts = app.getAllAccounts();
+    if(!activeAccount && accounts && accounts.length) activeAccount = accounts[0];
     if(activeAccount){
       try{
         const silent = await app.acquireTokenSilent({ scopes, account: activeAccount });
@@ -39,11 +42,6 @@
     activeAccount = result.account;
     accessToken = result.accessToken;
     return accessToken;
-  }
-
-  async function connect(){
-    const token = await getToken();
-    return { account: activeAccount, token };
   }
 
   async function graphFetch(path, options){
@@ -69,30 +67,52 @@
     return data;
   }
 
-  async function getTableRows(tableName){
+  async function getProfile(){
+    if(profile) return profile;
+    profile = await graphFetch('/me?$select=displayName,userPrincipalName,mail,id');
+    return profile;
+  }
+
+  async function connect(){
+    await getToken();
+    const me = await getProfile();
+    return { account: activeAccount, profile: me, token: accessToken };
+  }
+
+  function workbookItemId(){
     const c = cfg();
     const itemId = c.workbook && c.workbook.itemId;
     if(!itemId) throw new Error('Missing workbook.itemId in config.js');
-    const table = encodeURIComponent(tableName);
+    return itemId;
+  }
+
+  function tableName(key, fallback){
+    const c = cfg();
+    return (c.workbook && c.workbook.tables && c.workbook.tables[key]) || fallback;
+  }
+
+  async function getTableRows(tableNameValue){
+    const itemId = workbookItemId();
+    const table = encodeURIComponent(tableNameValue);
     return graphFetch(`/me/drive/items/${encodeURIComponent(itemId)}/workbook/tables/${table}/rows`);
   }
 
-  async function appendTableRow(tableName, values){
-    const c = cfg();
-    const itemId = c.workbook && c.workbook.itemId;
-    if(!itemId) throw new Error('Missing workbook.itemId in config.js');
-    const table = encodeURIComponent(tableName);
+  async function appendTableRow(tableNameValue, values){
+    const itemId = workbookItemId();
+    const table = encodeURIComponent(tableNameValue);
     return graphFetch(`/me/drive/items/${encodeURIComponent(itemId)}/workbook/tables/${table}/rows/add`, {
       method: 'POST',
       body: JSON.stringify({ values: [values] })
     });
   }
 
+  async function getTransactions(){
+    return getTableRows(tableName('transactions','TransactionsTable'));
+  }
+
   async function nextTransactionId(){
-    const c = cfg();
-    const tableName = (c.workbook && c.workbook.tables && c.workbook.tables.transactions) || 'TransactionsTable';
     try{
-      const rows = await getTableRows(tableName);
+      const rows = await getTransactions();
       const values = (rows.value || []).map(r => r.values && r.values[0] && r.values[0][0]).filter(Boolean);
       let max = 0;
       values.forEach(v => {
@@ -107,10 +127,8 @@
   }
 
   async function appendTransaction(rowValues){
-    const c = cfg();
-    const tableName = (c.workbook && c.workbook.tables && c.workbook.tables.transactions) || 'TransactionsTable';
-    return appendTableRow(tableName, rowValues);
+    return appendTableRow(tableName('transactions','TransactionsTable'), rowValues);
   }
 
-  window.HTCC_GRAPH = { msalReady, connect, getToken, graphFetch, appendTableRow, appendTransaction, nextTransactionId };
+  window.HTCC_GRAPH = { msalReady, connect, getToken, graphFetch, getProfile, getTableRows, getTransactions, appendTableRow, appendTransaction, nextTransactionId };
 })();
