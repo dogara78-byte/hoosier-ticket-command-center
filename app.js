@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch20b-workbook-status-fix';
+  const VERSION = 'v2026.06.25-patch20c-public-header';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -58,14 +58,23 @@
   const round2=v=>Math.round(Number(v||0)*100)/100;
   const cfg=()=>window.HTCC_CONFIG||{};
   const graphConfigured=()=>cfg().authMode==='graph'||cfg().graphEnabled===true;
+  const managerRequested=()=>new URLSearchParams(window.location.search).get('manager')==='1';
   const ready=()=>window.HTCC_GRAPH&&window.HTCC_GRAPH.msalReady&&window.HTCC_GRAPH.msalReady();
   const userEmail=profile=>String((profile&&(profile.mail||profile.userPrincipalName))||'').toLowerCase();
   const managerEmail=()=>String(cfg().managerEmail||'').toLowerCase();
 
   function setMode(){
-    let text='Fallback JSON';
-    if(graphConfigured()) text=ready()?(connection.connected?'OneDrive connected':'Graph configured'):'Graph configured - MSAL blocked';
-    if(publicSnapshot.loaded && !connection.connected) text='Public member snapshot loaded';
+    let text='Read-only member view';
+    const btn=$('#connectBtn');
+    const showManagerConnect=managerRequested() || connection.connected;
+    if(btn){
+      btn.style.display=showManagerConnect?'inline-flex':'none';
+      btn.textContent=connection.connected?'Refresh Workbook':'Connect OneDrive';
+      btn.title=showManagerConnect?'Dennis manager/live workbook mode':'Hidden in public member view';
+    }
+    if(graphConfigured() && managerRequested()) text=ready()?(connection.connected?'OneDrive connected':'Manager mode available'):'Manager mode unavailable - MSAL blocked';
+    if(publicSnapshot.loaded && !connection.connected) text='Read-only snapshot';
+    if(!publicSnapshot.loaded && !connection.connected && !managerRequested()) text='Read-only snapshot';
     if(connection.connected && liveLedger.loaded) text='OneDrive connected · workbook loaded';
     if(liveLedger.error) text='OneDrive connected · workbook read issue';
     $('#dataMode').textContent=text;
@@ -575,7 +584,11 @@
 
   const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
   function show(id){try{current=id; document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
-  async function connectOneDrive(){if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded'); const res=await window.HTCC_GRAPH.connect(); connection.connected=true; connection.profile=res.profile||null; const email=userEmail(connection.profile); connection.isManager=!!email&&email===managerEmail(); await refreshLedger(); setMode(); show(current); alert('Connected as '+(email||'Microsoft account')+(connection.isManager?' · Manager writeback enabled':' · Read-only account')+'. Workbook rows loaded: '+(liveLedger.transactions.length||0));}
-  function init(){try{setMode(); const n=$('#bottomNav'); n.innerHTML=screens.map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join(''); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
+  async function connectOneDrive(){
+    if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
+    if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded');
+    const res=await window.HTCC_GRAPH.connect(); connection.connected=true; connection.profile=res.profile||null; const email=userEmail(connection.profile); connection.isManager=!!email&&email===managerEmail(); await refreshLedger(); setMode(); show(current); alert('Connected as '+(email||'Microsoft account')+(connection.isManager?' · Manager writeback enabled':' · Read-only account')+'. Workbook rows loaded: '+(liveLedger.transactions.length||0));
+  }
+  function init(){try{setMode(); const n=$('#bottomNav'); n.innerHTML=screens.map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join(''); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
