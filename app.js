@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch15-fund-baseline';
+  const VERSION = 'v2026.06.25-patch16-money-clarity';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -316,8 +316,16 @@
   function renderMoney(){
     const m=DATA.metrics;
     const live=ledgerAvailable();
-    const sm=live?scopedMoneySummary():null;
-    layout('Money','Hoosier Fund Moneyline','Money is split into current active balance, historical sales handled, ticket activity, and parking activity. Recent rows below come directly from the workbook after OneDrive is connected.',`${seasonSelectorBlock()}<div class="grid two">${card('Scoped Net Activity',live?money(sm.total):money(m.currentAccountBalance),live?'scope: '+selectedSeasonLabel():'cash currently held for 2026 active ledger')}${card('Scoped Positive Rows',live?money(sm.positive):money(m.sales2026),live?'sales / credits / inflows':'new 2026 activity')}${card('Scoped Cost Rows',live?money(sm.negative):money(0),live?'purchases / expenses / outflows':'connect workbook for live costs')}${card('Ticket Activity',live?money(sm.tickets):money(m.ticketActivity),'tickets only, parking removed')}${card('Parking Activity',live?money(sm.parking):money(m.lifetimeParking),'member-level parking split')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 handled through the ledger')}</div>${notice('<b>Rule:</b> scoped net activity is an audit view. Settlement uses member credits/payments minus allocated costs, not blind row totals.')}${live?'<p class="eyebrow" style="margin-top:26px">Money Audit Rows</p>'+auditTxnTable(scopeRows(),12):''}${recentTransactionsBlock(12)}`);
+    const sm=live?scopedMoneySummary():{total:0,positive:0,negative:0,tickets:0,parking:0};
+    const scope=selectedSeasonLabel();
+    const is2026=live && String(selectedSeasonValue())==='2026';
+    const currentFundCards = is2026
+      ? `${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Balances',money(0),'Dennis, Joel, Kyle, and Seth are fully paid')}${card('Next Expected Activity','First Sale','ticket or parking sale creates available fund balance')}`
+      : `${card('Selected Scope Net Activity',money(sm.total),'audit subtotal for '+scope, sm.total<0?'neg':'')}${card('Positive / Inflow Rows',money(sm.positive),'sales, credits, top-offs, opening balances')}${card('Cost / Outflow Rows',money(sm.negative),'purchases, fees, expenses', sm.negative<0?'neg':'')}`;
+    const auditIntro = is2026
+      ? '<b>2026 status:</b> all members are paid in and the fund starts at $0.00. The numbers below are audit rows only; they are not extra money owed.'
+      : '<b>Historical audit:</b> these totals explain ledger movement for the selected scope. Use Settlement for who owes or is owed.';
+    layout('Money','Hoosier Fund Moneyline','This page separates the current fund status from historical audit totals, so member balances are not confused with raw ledger movement.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Current Fund Status</p><div class="grid two">${currentFundCards}</div>${notice(auditIntro)}<p class="eyebrow" style="margin-top:26px">Ledger Audit Totals</p><div class="grid two">${card('Ledger Net Activity',live?money(sm.total):money(m.currentAccountBalance),'inflows plus outflows for '+(live?scope:'fallback data'), sm.total<0?'neg':'')}${card('Inflows / Credits',live?money(sm.positive):money(m.sales2026),'sales, credits, reimbursements, top-offs')}${card('Outflows / Costs',live?money(sm.negative):money(0),'season purchases, parking, fees, travel', sm.negative<0?'neg':'')}${card('Ticket Activity',live?money(sm.tickets):money(m.ticketActivity),'ticket rows only, parking removed', sm.tickets<0?'neg':'')}${card('Parking Activity',live?money(sm.parking):money(m.lifetimeParking),'parking rows only', sm.parking<0?'neg':'')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 sales handled through the ledger')}</div>${notice('<b>Rule:</b> Ledger Net Activity is an audit subtotal, not necessarily cash on hand. Settlement uses member credits/payments minus allocated costs. For 2026, the official baseline is $0.00 for every member and $0.00 in the fund until the first sale.')}${live?'<p class="eyebrow" style="margin-top:26px">Money Audit Rows</p>'+auditTxnTable(scopeRows(),12):''}${recentTransactionsBlock(12)}`);
     bindSeasonSelector(); bindRefresh();
   }
   function renderSeats(){
