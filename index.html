@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hoosier Ticket Command Center</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" defer></script>
+  <script src="config.js" defer></script>
+  <script src="graph-client.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="stripe"></div>
+  <header class="hero">
+    <div class="hero-inner">
+      <div class="brand-lockup">
+        <div class="badge">IU</div>
+        <div>
+          <h1>Hoosier Ticket<br/>Command Center</h1>
+          <p>Halftime Glizzy's Ledger · one account, four tracked funds</p>
+        </div>
+      </div>
+      <div class="mode-card">
+        <span>Data mode</span>
+        <strong id="dataMode">Loading</strong>
+        <button id="signInBtn" class="gold-btn" type="button">Connect OneDrive</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="app-shell">
+    <section class="privacy-card"><strong>Privacy flag:</strong> this app displays real financial data. Host the app safely and keep the workbook/JSON private.</section>
+    <section id="screen" class="screen">
+      <div class="loading-card">
+        <h2>Loading the command center…</h2>
+        <p>If this stays visible, confirm you are opening the extracted app folder from a hosted URL or local web server, not directly from inside the ZIP.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav" aria-label="Dashboard sections">
+    <button data-view="score" class="active"><span>🏟️</span><b>Score</b></button>
+    <button data-view="money"><span>💰</span><b>Money</b></button>
+    <button data-view="seats"><span>🎟️</span><b>Seats</b></button>
+    <button data-view="parking"><span>🅿️</span><b>Parking</b></button>
+    <button data-view="history"><span>🏆</span><b>History</b></button>
+    <button data-view="settle"><span>🤝</span><b>Settle</b></button>
+    <button data-view="manager"><span>✍️</span><b>Manager</b></button>
+  </nav>
+
+  <template id="errorTemplate">
+    <section class="error-card"><h2>Something blocked the app.</h2><p></p></section>
+  </template>
+</body>
+</html>
