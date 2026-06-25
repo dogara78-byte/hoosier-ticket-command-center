@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch17-member-dashboard';
+  const VERSION = 'v2026.06.25-patch17b-last-activity';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -87,7 +87,18 @@
     const tx=liveLedger.transactions;
     const last=recentTxns(1)[0];
     const addedFromApp=tx.filter(t=>String(t.Notes||'').includes('Hoosier Ticket Command Center')).length;
-    return {count:tx.length, lastTxn:last?last.TxnID:'—', lastDate:last?last.TxnDate:'—', addedFromApp};
+    return {count:tx.length, lastTxn:last?last.TxnID:'—', lastDate:last?last.TxnDate:'—', addedFromApp, last};
+  }
+  function lastFundActivityDisplay(){
+    const tx = recentTxns(1)[0];
+    if(!tx){
+      return publicSnapshot.loaded ? {value:'Public snapshot loaded', sub:'member read-only data'} : {value:'Connect OneDrive', sub:'or publish a member snapshot'};
+    }
+    const category = tx.Category || tx.TransactionType || tx.AssetType || 'Fund activity';
+    const amount = money(rowTotal(tx));
+    const detail = tx.Game || tx.Description || tx.TransactionType || '';
+    const date = tx.TxnDate || '';
+    return { value:`${category} · ${amount}`, sub:[detail,date].filter(Boolean).join(' · ') };
   }
   async function refreshLedger(){
     if(!connection.connected || !window.HTCC_GRAPH || !window.HTCC_GRAPH.getTransactions) return;
@@ -317,11 +328,11 @@
     const live=ledgerAvailable();
     const sm=live?scopedMoneySummary():{tickets:0,parking:0,total:0};
     const memberStatus = 'Everyone paid up';
-    const lastActivity = liveLedger.loaded ? `${s.lastTxn} · ${s.lastDate}` : (publicSnapshot.loaded ? 'Public snapshot loaded' : 'Connect OneDrive or publish snapshot');
+    const lastFundActivity = lastFundActivityDisplay();
     const dataNote = liveLedger.loaded
       ? `<b>Data status:</b> workbook loaded · ${s.count} transactions · latest ${s.lastTxn} (${s.lastDate}). <button class="small" id="refreshWorkbook">Refresh workbook</button>`
       : (publicSnapshot.loaded ? '<b>Data status:</b> public read-only member snapshot loaded.' : '<b>Data status:</b> waiting for OneDrive or public snapshot data.');
-    layout('Scoreboard','Game Day Dashboard','A member-first view of the 2026 ticket fund: who is paid up, what money is available, and what happened recently.',`<div class="grid">${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Status',memberStatus,'Dennis, Joel, Kyle, and Seth are settled')}${card('Ticket Sales This Season',money(0),'no 2026 sale proceeds logged yet')}${card('Parking Sales This Season',money(0),'no 2026 parking sale proceeds logged yet')}${card('Next Expected Activity','First Sale','ticket or parking sale adds fund balance')}${card('Last Fund Activity',lastActivity,'latest workbook/snapshot activity')}</div>${notice('<b>2026 baseline:</b> all members are fully paid into the season and the fund is $0.00 until the first sale. This page avoids workbook row counts and transaction IDs except in the data-status note below.')}<p class="eyebrow" style="margin-top:26px">Member Fund Status</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(0)}</div><div class="sub">settled for 2026</div><div class="line"><span>Roll-forward applied</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${notice(dataNote)}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${recentTransactionsBlock(5)}`); bindRefresh();}
+    layout('Scoreboard','Game Day Dashboard','A member-first view of the 2026 ticket fund: who is paid up, what money is available, and what happened recently.',`<div class="grid">${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Status',memberStatus,'Dennis, Joel, Kyle, and Seth are settled')}${card('Ticket Sales This Season',money(0),'no 2026 sale proceeds logged yet')}${card('Parking Sales This Season',money(0),'no 2026 parking sale proceeds logged yet')}${card('Next Expected Activity','First Sale','ticket or parking sale adds fund balance')}${card('Last Fund Activity',lastFundActivity.value,lastFundActivity.sub)}</div>${notice('<b>2026 baseline:</b> all members are fully paid into the season and the fund is $0.00 until the first sale. This page avoids workbook row counts and transaction IDs except in the data-status note below.')}<p class="eyebrow" style="margin-top:26px">Member Fund Status</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(0)}</div><div class="sub">settled for 2026</div><div class="line"><span>Roll-forward applied</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${notice(dataNote)}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${recentTransactionsBlock(5)}`); bindRefresh();}
 
   function renderMoney(){
     const m=DATA.metrics;
