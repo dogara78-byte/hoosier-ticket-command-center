@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch19-seat-parking-polish';
+  const VERSION = 'v2026.06.25-patch19b-render-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -291,6 +291,43 @@
       if(b.amount<-0.005) rows.push([b.name,'Ticket Fund',money(-b.amount),'Member owes the shared fund if the season/scope closed today']);
     });
     return rows;
+  }
+
+
+  function activityKind(t){
+    const text = [t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].join(' ').toLowerCase();
+    const total = rowTotal(t);
+    if(text.includes('parking')) return 'Parking';
+    if(text.includes('sale') || text.includes('resale')) return 'Sale / Resale';
+    if(text.includes('top-off') || text.includes('topoff') || text.includes('donation') || text.includes('adjust') || text.includes('reimbursement') || text.includes('credit') || text.includes('reversal')) return 'Adjustment';
+    if(total < 0 || text.includes('purchase') || text.includes('fee') || text.includes('tax') || text.includes('travel') || text.includes('upgrade')) return 'Cost / Purchase';
+    return 'Fund Activity';
+  }
+  function activityRows(kind='All',limit=25){
+    let rows = scopeRows();
+    if(kind && kind !== 'All') rows = rows.filter(t=>activityKind(t)===kind);
+    return [...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);
+  }
+  function activitySummary(rows=scopeRows()){
+    const out={sales:0,parking:0,costs:0,adjustments:0,count:rows.length};
+    rows.forEach(t=>{
+      const amt=rowTotal(t);
+      const kind=activityKind(t);
+      if(kind==='Sale / Resale') out.sales=round2(out.sales+amt);
+      else if(kind==='Parking') out.parking=round2(out.parking+amt);
+      else if(kind==='Cost / Purchase') out.costs=round2(out.costs+amt);
+      else if(kind==='Adjustment') out.adjustments=round2(out.adjustments+amt);
+    });
+    return out;
+  }
+  function memberActivityTable(rows,limit=15){
+    const picked=[...(rows||[])].slice(0,limit);
+    if(!picked.length) return notice('<b>No activity rows:</b> nothing in this scope yet.');
+    return table(['Date','Activity','Game/Event','Category','Amount'],picked.map(t=>{
+      const activity=activityKind(t);
+      const event=t.Game || t.Description || t.TransactionType || '';
+      return [t.TxnDate || '', activity, event, t.Category || t.TransactionType || '', money(rowTotal(t))];
+    }));
   }
 
 
