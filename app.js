@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch20-public-member-polish';
+  const VERSION = 'v2026.06.25-patch20b-workbook-status-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -98,6 +98,31 @@
     }
     return notice('<b>Data status:</b> waiting for OneDrive connection or public member snapshot.');
   }
+
+  function workbookStatus(){
+    const parts=[];
+    if(connection.connected && liveLedger.loaded){
+      const stats=liveStats();
+      parts.push('<b>Workbook:</b> loaded from OneDrive · '+stats.count+' transactions · latest '+(stats.lastTxn||'—')+' '+(stats.lastDate?('('+stats.lastDate+')'):'')+'.');
+      parts.push('<button id="refreshWorkbookBtn" class="miniBtn">Refresh workbook</button>');
+      if(liveLedger.lastLoaded) parts.push('<span class="sub">Last refresh: '+fmtDateTime(liveLedger.lastLoaded.toISOString())+'</span>');
+    } else if(connection.connected && liveLedger.error){
+      parts.push('<b>Workbook:</b> connected, but read failed: '+(liveLedger.error.message||String(liveLedger.error)));
+      parts.push('<button id="refreshWorkbookBtn" class="miniBtn">Retry workbook refresh</button>');
+    } else if(connection.connected){
+      parts.push('<b>Workbook:</b> OneDrive connected. Workbook has not loaded yet.');
+      parts.push('<button id="refreshWorkbookBtn" class="miniBtn">Load workbook</button>');
+    } else if(publicSnapshot.loaded){
+      const m=publicSnapshot.meta||{};
+      parts.push('<b>Public snapshot:</b> read-only member data · '+(m.rowCount||liveLedger.transactions.length||0)+' transactions · published '+fmtDateTime(m.publishedAt)+'.');
+    } else if(graphConfigured()){
+      parts.push('<b>Graph:</b> configured. Connect OneDrive for Dennis manager/live workbook mode.');
+    } else {
+      parts.push('<b>Data:</b> bundled fallback data.');
+    }
+    return '<div class="notice">'+parts.join(' ')+'</div>';
+  }
+
   function buildMemberSummary(){
     const scope='2026';
     const rows=scopeRows(scope);
