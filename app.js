@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch21-snapshot-download-fix';
+  const VERSION = 'v2026.06.25-patch21b-snapshot-helper-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -56,6 +56,14 @@
   const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const money0=n=>'$'+Math.round(Number(n||0)).toLocaleString('en-US');
   const round2=v=>Math.round(Number(v||0)*100)/100;
+  const escapeHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]||ch));
+  function isSaleLike(t){
+    const words=[t&&t.Category,t&&t.TransactionType,t&&t.Description,t&&t.AssetType].map(x=>String(x||'').toLowerCase()).join(' ');
+    const total=rowTotal(t);
+    if(/sale|resale|credit|top.?off|donation|opening balance|reimbursement received/.test(words)) return true;
+    if(/purchase|payment|fee|tax|travel|expense|reimbursement paid|cost/.test(words)) return false;
+    return total>0;
+  }
   const cfg=()=>window.HTCC_CONFIG||{};
   const graphConfigured=()=>cfg().authMode==='graph'||cfg().graphEnabled===true;
   const managerRequested=()=>new URLSearchParams(window.location.search).get('manager')==='1';
