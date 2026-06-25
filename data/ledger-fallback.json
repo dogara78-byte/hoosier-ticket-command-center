@@ -10,7 +10,9 @@
       "emailPlaceholder": "YOUR_PERSONAL_MICROSOFT_EMAIL_HERE"
     },
     "currentSeason": 2026,
-    "delivery": "GitHub Pages / hosted static app + Microsoft Graph / OneDrive workbook target"
+    "delivery": "GitHub Pages / hosted static app + Microsoft Graph / OneDrive workbook target",
+    "version": "v2026.06.25-graph2",
+    "needsReviewStatus": "Resolved based on manager clarifications on 2026-06-25."
   },
   "current": {
     "accountBalance": 0.0,
@@ -3841,7 +3843,16 @@
       "Notes": ""
     }
   ],
-  "needsReview": [
+  "needsReview": [],
+  "sources": {
+    "2021": "https://www.sports-reference.com/cfb/schools/indiana/2021-schedule.html",
+    "2022": "https://www.sports-reference.com/cfb/schools/indiana/2022-schedule.html",
+    "2023": "https://www.sports-reference.com/cfb/schools/indiana/2023-schedule.html",
+    "2024": "https://iuhoosiers.com/sports/football/schedule/2024",
+    "2025": "https://www.sports-reference.com/cfb/schools/indiana/2025-schedule.html",
+    "2026": "https://www.espn.com/college-football/team/schedule/_/id/84/season/2026"
+  },
+  "needsReviewResolved": [
     {
       "TxnID": "TXN-0001",
       "SourceYear": 2024,
@@ -3923,13 +3934,5 @@
       "ReviewReason": "Manual top-off distribution is not exactly equal; verify intended allocation.",
       "Notes": ""
     }
-  ],
-  "sources": {
-    "2021": "https://www.sports-reference.com/cfb/schools/indiana/2021-schedule.html",
-    "2022": "https://www.sports-reference.com/cfb/schools/indiana/2022-schedule.html",
-    "2023": "https://www.sports-reference.com/cfb/schools/indiana/2023-schedule.html",
-    "2024": "https://iuhoosiers.com/sports/football/schedule/2024",
-    "2025": "https://www.sports-reference.com/cfb/schools/indiana/2025-schedule.html",
-    "2026": "https://www.espn.com/college-football/team/schedule/_/id/84/season/2026"
-  }
+  ]
 }

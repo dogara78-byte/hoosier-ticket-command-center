@@ -4,11 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Hoosier Ticket Command Center</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260625-graph2" />
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" defer></script>
-  <script src="config.js" defer></script>
-  <script src="graph-client.js" defer></script>
-  <script src="app.js" defer></script>
+  <script src="config.js?v=20260625-graph2" defer></script>
+  <script src="graph-client.js?v=20260625-graph2" defer></script>
+  <script src="app.js?v=20260625-graph2" defer></script>
 </head>
 <body>
   <div class="stripe"></div>
@@ -25,6 +25,7 @@
         <span>Data mode</span>
         <strong id="dataMode">Loading</strong>
         <button id="signInBtn" class="gold-btn" type="button">Connect OneDrive</button>
+        <small id="appVersion" style="display:block;margin-top:8px;opacity:.85">v2026.06.25-graph2</small>
       </div>
     </div>
   </header>
@@ -34,7 +35,7 @@
     <section id="screen" class="screen">
       <div class="loading-card">
         <h2>Loading the command center…</h2>
-        <p>If this stays visible, confirm you are opening the extracted app folder from a hosted URL or local web server, not directly from inside the ZIP.</p>
+        <p>If this stays visible, confirm you are opening the GitHub Pages URL and that index.html, app.js, graph-client.js, and styles.css were overwritten at the repo root.</p>
       </div>
     </section>
   </main>
