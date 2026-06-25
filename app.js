@@ -1,170 +1,25 @@
-const state = { data:null, view:'score', graphMode:false, graphStatus:'Fallback JSON' };
-const $ = (s,r=document)=>r.querySelector(s);
-const $$ = (s,r=document)=>Array.from(r.querySelectorAll(s));
-const money = n => (Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2});
-const money0 = n => (Number(n)||0).toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:0});
-const esc = s => String(s ?? '').replace(/[&<>\"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-window.addEventListener('DOMContentLoaded', boot);
-
-async function boot(){
-  try{
-    $$('.bottom-nav button').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.view)));
-    $('#signInBtn').addEventListener('click', connectGraph);
-
-    const mode = await window.HTCC_GRAPH?.init?.();
-    state.graphStatus = mode?.mode || 'Fallback JSON';
-    state.graphMode = mode?.mode === 'OneDrive connected';
-    $('#dataMode').textContent = state.graphStatus;
-
-    state.data = await loadFallback();
-    setView('score');
-  }catch(e){ showError(e); }
-}
-
-async function loadFallback(){
-  const candidates = ['data/ledger-fallback.json','ledger-fallback.json','HOSTED_APP_ledger_ACCURATE.json'];
-  let last = null;
-  for (const path of candidates){
-    try{
-      const r = await fetch(path,{cache:'no-store'});
-      if(r.ok){
-        const raw = await r.json();
-        return normalizeData(raw);
-      }
-      last = new Error(`${path}: ${r.status}`);
-    }catch(e){ last = e; }
-  }
-  throw new Error('Data did not load. Confirm data/ledger-fallback.json is uploaded beside the app files. Details: '+(last?.message||last));
-}
-
-function normalizeData(raw){
-  // Graph-ready JSON already has current/historical. Older JSON has summaries.
-  if(raw.current && raw.historical) return raw;
-  if(raw.summaries){
-    const s = raw.summaries;
-    return {
-      meta: { sourceOfTruth:'Excel workbook in OneDrive remains the source of truth until Microsoft Graph writeback is live.' },
-      current: {
-        accountBalance: s.currentCalculatedAccountBalance ?? 0,
-        current2026Sales: s.current2026Sales ?? 0,
-        fundBalances: s.currentFundBalances || {Dennis:0,Joel:0,Kyle:0,'Dennis x 2':0},
-        seatBalances: s.currentSeatBalances || {'Dennis Seat 1':0,'Joel Seat':0,'Kyle Seat':0,'Dennis Seat 2':0},
-        settlement: s.currentSettlement || {Dennis:0,Joel:0,Kyle:0,'Dennis x 2':0},
-        rollForwardFrom2025: s.rollForward2025To2026 || {},
-        cashPaid2026: s.cashPaid2026 || {},
-        note: s.dashboardNote || ''
-      },
-      historical: {
-        salesByYear: s.salesByYear || {},
-        ticketSalesByYear: s.ticketSalesByYear || {},
-        parkingSalesByYear: s.parkingSalesByYear || {},
-        lifetimeRegularSales: s.lifetimeRegularSales || 0,
-        lifetimeTicketSales: s.lifetimeTicketSales || 0,
-        lifetimeParkingSales: s.lifetimeParkingSales || 0,
-        priorBugNote: s.priorBugNote || 'Current cash/balance is separated from historical throughput.'
-      },
-      members: raw.members || [],
-      seatAccounts: raw.seatAccounts || [],
-      games: raw.games || [],
-      transactions: raw.transactions || [],
-      needsReview: raw.needsReview || [],
-      sources: raw.sources || {}
-    };
-  }
-  throw new Error('Unsupported ledger JSON shape.');
-}
-
-async function connectGraph(){
-  try{ await window.HTCC_GRAPH.signIn(); }
-  catch(e){ alert(e.message); }
-}
-
-function setView(view){
-  state.view = view;
-  $$('.bottom-nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
-  const renderers = {score, moneyView, seats, parking, history, settle, manager};
-  const renderer = renderers[view] || score;
-  try{
-    $('#screen').innerHTML = renderer();
-    if(view==='manager') wireManager();
-    window.scrollTo({top:0,behavior:'smooth'});
-  }catch(e){
-    console.error('Screen render failed', view, e);
-    $('#screen').innerHTML = `<section class="error-card"><h2>${esc(view)} page failed</h2><p>${esc(e.message)}</p></section>`;
-  }
-}
-
-function title(eyebrow, heading, lede){ return `<p class="eyebrow">${eyebrow}</p><h2 class="screen-title">${heading}</h2><p class="lede">${lede}</p>`; }
-function kpi(label,value,hint,cls=''){ return `<article class="card kpi"><div class="label">${label}</div><div class="value ${cls}">${value}</div><div class="hint">${hint}</div></article>`; }
-
-function score(){
-  const d=state.data, c=d.current, h=d.historical;
-  return `${title('Scoreboard','Game Day Dashboard','Current values are active 2026 fund balances. Historical activity is shown separately so old sales do not pretend to be cash on hand.')}
-  <div class="grid kpi-grid">
-    ${kpi('Current account balance',money(c.accountBalance),'2026 active ledger','good')}
-    ${kpi('2026 sales logged',money(c.current2026Sales||0),'new season activity')}
-    ${kpi('Lifetime sales handled',money0(h.lifetimeRegularSales),'2024 + 2025 regular sales')}
-    ${kpi('Parking handled',money0(h.lifetimeParkingSales),'tracked separately from seats','good')}
-  </div>
-  <p class="eyebrow">Active Funds</p><div class="grid member-grid">${Object.entries(c.fundBalances||{}).map(([m,v])=>memberCard(m,v,(c.rollForwardFrom2025||{})[m],(c.cashPaid2026||{})[m])).join('')}</div>
-  <section class="note-card"><strong>Source of truth:</strong> ${esc(d.meta?.sourceOfTruth||'Excel workbook in OneDrive remains source of truth.')} ${esc(c.note||'')}</section>`;
-}
-function memberCard(m,v,carry,cash){ return `<article class="card"><h3 class="member-name">${esc(m)}</h3><div class="money">${money(v)}</div><div class="small-row"><span>Roll-forward</span><b>${money(carry||0)}</b></div><div class="small-row"><span>2026 cash paid</span><b>${money(cash||0)}</b></div></article>`; }
-
-function moneyView(){
-  const h=state.data.historical || {};
-  const years = Object.keys(h.salesByYear || {}).sort();
-  return `${title('Money','Money by Season','Sales handled are historical throughput. They are not the same thing as the current account balance.')}
-  <div class="grid kpi-grid">
-    ${kpi('2024 sales',money((h.salesByYear||{})['2024']||0),'tickets + parking')}
-    ${kpi('2025 sales',money((h.salesByYear||{})['2025']||0),'tickets + parking')}
-    ${kpi('Ticket sales',money(h.lifetimeTicketSales||0),'lifetime regular ticket sales')}
-    ${kpi('Parking sales',money(h.lifetimeParkingSales||0),'member-level split','good')}
-  </div>
-  <p class="eyebrow">Year Split</p>${simpleTable(['Year','Tickets','Parking','Total'], years.map(y=>[y,money((h.ticketSalesByYear||{})[y]||0),money((h.parkingSalesByYear||{})[y]||0),money((h.salesByYear||{})[y]||0)]))}
-  <section class="note-card"><strong>Accuracy guardrail:</strong> ${esc(h.priorBugNote || 'Current active balances are kept separate from historical sales activity.')}</section>`;
-}
-
-function seats(){
-  const d=state.data, c=d.current;
-  return `${title('Seats','Seat Standings','Each ticket is treated as its own seat account. Dennis Seat 2 replaces the former fourth seat in 2026.')}
-  <div class="grid seat-grid">${Object.entries(c.seatBalances||{}).map(([s,v])=>`<article class="card"><h3 class="member-name">${esc(s)}</h3><div class="money">${money(v)}</div><div class="small-row"><span>Active season</span><b>2026</b></div></article>`).join('')}</div>
-  <p class="eyebrow">Seat Accounts</p>${simpleTable(['Seat','Owner','Active From','Active To'], (d.seatAccounts||[]).map(s=>[s.SeatLabel,s.OwnerMember,s.ActiveFrom,s.ActiveTo||'Current']))}`;
-}
-function parking(){
-  const h=state.data.historical || {};
-  return `${title('Parking','Parking Pass Tracker','Parking is separate from game tickets and allocated at the member level, not the seat level.')}
-  <div class="grid kpi-grid">${kpi('2024 parking',money((h.parkingSalesByYear||{})['2024']||0),'member-level split')}${kpi('2025 parking',money((h.parkingSalesByYear||{})['2025']||0),'member-level split')}${kpi('2026 parking',money((h.parkingSalesByYear||{})['2026']||0),'nothing yet')}${kpi('Lifetime parking',money(h.lifetimeParkingSales||0),'total handled','good')}</div>`;
-}
-function history(){
-  const games = state.data.games || [];
-  const bySeason = {};
-  games.forEach(g=>{bySeason[g.Season] ||= {w:0,l:0,games:[]}; if(g.WinLoss==='W')bySeason[g.Season].w++; if(g.WinLoss==='L')bySeason[g.Season].l++; bySeason[g.Season].games.push(g);});
-  const rows = Object.entries(bySeason).sort(([a],[b])=>String(a).localeCompare(String(b))).map(([s,x])=>[s, `${x.w}-${x.l}`, x.games.length, (x.games.find(g=>/National Championship/.test(g.SpecialFlag||''))?'🏆 National Champions':'')]);
-  const playoff = games.filter(g=>Number(g.Season)===2025 && /Postseason|Championship|Bowl|CFP/.test(g.SpecialFlag||''));
-  return `${title('Hoosier History','Season Rewind','History gives the dashboard some soul, but it stays separate from the accounting ledger.')}
-  ${simpleTable(['Season','Record','Games','Note'], rows)}
-  <p class="eyebrow">2025 Championship Run</p>${simpleTable(['Date','Game','Result','Flag'], playoff.map(g=>[g.Date,`${g.Opponent} · ${g.Stadium}`,`${g.Result||g.WinLoss||''} ${g.IUScore ?? ''}-${g.OpponentScore ?? ''}`,g.SpecialFlag]))}`;
-}
-function settle(){
-  const c=state.data.current;
-  return `${title('Settlement','Settlement Snapshot','If the shared account were closed today, this is what each active fund would receive based on the active 2026 ledger.')}
-  ${simpleTable(['Fund','Settlement'], Object.entries(c.settlement||{}).map(([m,v])=>[m,money(v)]))}
-  <section class="note-card"><strong>Assumption:</strong> actual bank balance equals calculated ledger balance. No separate bank reconciliation field is included yet.</section>`;
-}
-function manager(){
-  const isConnected = state.graphStatus === 'OneDrive connected';
-  return `${title('Manager','Manager Entry Roadmap','For now, Excel stays official. After Microsoft Graph is fully configured, this screen will append rows to the Transactions table in OneDrive.')}
-  <section class="card"><div class="form-grid"><div class="field"><label>Transaction date</label><input type="date" id="txnDate"></div><div class="field"><label>Asset type</label><select id="asset"><option>Game Ticket</option><option>Parking</option><option>Fees/Taxes</option><option>Postseason</option><option>Adjustment</option></select></div><div class="field"><label>Amount</label><input type="number" step="0.01" id="amount" placeholder="0.00"></div><div class="field"><label>Owner / split</label><select id="owner"><option>All Members</option><option>Dennis</option><option>Joel</option><option>Kyle</option><option>Seth</option><option>Dennis x 2</option></select></div><div class="field"><label>Description</label><textarea id="desc" placeholder="Example: IU vs Purdue parking resale"></textarea></div></div><div class="manager-actions"><button class="gold-btn" id="mockSubmit">Preview row</button><button class="gold-btn" id="graphSubmit">Append to OneDrive table</button></div><pre id="managerOutput" class="note-card">${isConnected?'OneDrive connected. Preview before append.':'Connect OneDrive first, then preview a row.'}</pre></section>`;
-}
-function wireManager(){
-  $('#mockSubmit')?.addEventListener('click',()=>{$('#managerOutput').textContent=JSON.stringify(managerRow(),null,2)});
-  $('#graphSubmit')?.addEventListener('click',async()=>{
-    try{ await window.HTCC_GRAPH.appendTransaction(Object.values(managerRow())); $('#managerOutput').textContent='Row submitted to OneDrive workbook.'; }
-    catch(e){ $('#managerOutput').textContent='Graph writeback is not ready yet: '+e.message; }
-  });
-}
-function managerRow(){ return {TxnDate:$('#txnDate').value, AssetType:$('#asset').value, Amount:Number($('#amount').value||0), Owner:$('#owner').value, Description:$('#desc').value, EnteredBy:'Dennis', Status:'Draft'}; }
-function simpleTable(headers, rows){ return `<div class="table-scroll"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${(rows||[]).map(r=>`<tr>${r.map((c,i)=>`<td class="${i>0?'num':''}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`; }
-function showError(e){ console.error(e); $('#screen').innerHTML = `<section class="error-card"><h2>Something blocked the app.</h2><p>${esc(e.message)}</p></section>`; }
+(function(){
+const VERSION='v2026.06.25-patch3';
+const screens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['settle','🤝','Settle'],['manager','✍️','Manager']];
+let DATA=null, current='score';
+const $=s=>document.querySelector(s); const app=()=>$('#app');
+const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const money0=n=>'$'+Math.round(Number(n||0)).toLocaleString('en-US');
+function setMode(){const c=window.HTCC_CONFIG||{}; const graph=(c.authMode==='graph'||c.graphEnabled===true); const ready=window.HTCC_GRAPH&&window.HTCC_GRAPH.msalReady&&window.HTCC_GRAPH.msalReady(); $('#dataMode').textContent= graph ? (ready?'Graph configured':'Graph configured - MSAL blocked') : 'Fallback JSON'; const v=$('#version'); if(v) v.textContent=VERSION;}
+function card(title,val,sub,cls=''){return `<article class="card"><h3>${title}</h3><div class="value ${cls}">${val}</div><div class="sub">${sub||''}</div></article>`;}
+function notice(html,cls=''){return `<div class="notice ${cls}">${html}</div>`;}
+function table(headers,rows){return `<div class="table"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map((c,i)=>`<td class="${i>0?'num':''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
+function layout(eyebrow,title,lede,body){app().innerHTML=`${notice('<b>Privacy flag:</b> this app displays real financial data. Host the app safely and keep the workbook/JSON private.')}<section><p class="eyebrow">${eyebrow}</p><h2>${title}</h2><p class="lede">${lede}</p>${body}</section>`;}
+function renderScore(){const m=DATA.metrics; const funds=DATA.activeFunds; layout('Scoreboard','Game Day Dashboard','Current values are active 2026 fund balances. Historical activity is shown separately so old sales do not pretend to be cash on hand.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('2026 Sales Logged',money(m.sales2026),'new season activity')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}${card('Parking Handled',money0(m.lifetimeParking),'tracked separately from seats')}</div><p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${funds.map(f=>`<article class="card"><h3>${f.name}</h3><div class="value">${money(f.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(f.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(f.cashPaid)}</b></div></article>`).join('')}</div>${notice('<b>Source of truth:</b> Excel workbook in OneDrive remains official until Microsoft Graph writeback is live. 2026 is currently square after applying 2025 carry-in balances and cash paid for seats.')}`);}
+function renderMoney(){const m=DATA.metrics; layout('Money','Hoosier Fund Moneyline','Money is split into current active balance, historical sales handled, ticket activity, and parking activity. This fixes the earlier lifetime-vs-current confusion.',`<div class="grid two">${card('Current Active Balance',money(m.currentAccountBalance),'cash currently held for 2026 active ledger')}${card('2026 Sales Logged',money(m.sales2026),'new 2026 sales and purchases')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 handled through the ledger')}${card('Ticket Activity',money(m.ticketActivity),'tickets only, parking removed')}${card('Parking Activity',money(m.lifetimeParking),'member-level parking split')}${card('Settlement If Closed Today',money(m.currentAccountBalance),'based on active ledger assumption')}</div>${notice('<b>Rule:</b> current balance and lifetime activity are intentionally separate. Old sales are history unless they rolled forward into current funds.')}`);}
+function renderSeats(){layout('Seats','Seat Standings','Each ticket is treated as its own seat account. Dennis Seat 2 replaces the former fourth seat in 2026.',`<div class="grid">${DATA.seatAccounts.filter(s=>s.activeTo==='Current').map(s=>card(s.seat,money(s.balance),`Owner: ${s.owner}`)).join('')}</div><p class="eyebrow" style="margin-top:26px">Seat Accounts</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);}
+function renderParking(){const total=DATA.parking.reduce((a,p)=>a+p.amount,0); layout('Parking','Parking Pass Tracker','Parking is separate from game tickets and allocated at the member level, not the seat level.',`<div class="grid">${DATA.parking.map(p=>card(`${p.year} Parking`,money(p.amount),p.amount?'member-level split':'nothing yet')).join('')}${card('Lifetime Parking',money(total),'total handled')}</div>`);}
+function renderHistory(){layout('Hoosier History','Season Rewind','History gives the dashboard some soul, but it stays separate from the accounting ledger.',`${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);}
+function renderSettle(){layout('Settlement','Settlement Snapshot','If the shared account were closed today, this is what each active fund would receive based on the active 2026 ledger.',`${table(['Fund','Settlement'],DATA.activeFunds.map(f=>[f.name,money(f.balance)]))}${notice('<b>Assumption:</b> actual bank balance equals calculated ledger balance. No separate bank reconciliation field is included yet.')}`);}
+function renderManager(){layout('Manager','Manager Entry Roadmap','For now, Excel stays official. After Microsoft Graph is configured, this screen will append rows to the Transactions table in OneDrive.',`<div class="card"><div class="form"><label>Transaction date<input type="date" id="txDate"></label><label>Asset type<select id="txAsset"><option>Game Ticket</option><option>Parking</option><option>Fee</option><option>Adjustment</option></select></label><label>Amount<input id="txAmount" type="number" step="0.01" placeholder="0.00"></label><label>Owner / split<select id="txOwner"><option>All Members</option><option>Dennis</option><option>Joel</option><option>Kyle</option><option>Dennis x 2</option></select></label><label class="wide">Description<textarea id="txDesc" placeholder="Example: IU vs Purdue parking resale"></textarea></label></div><p><button class="btn" id="previewBtn">Preview row</button> <button class="btn" id="appendBtn">Append to OneDrive table</button></p><pre class="notice" id="previewBox">No row preview yet.</pre></div>`); setTimeout(()=>{const b=$('#previewBtn'); if(b)b.onclick=()=>{$('#previewBox').textContent=JSON.stringify({date:$('#txDate').value,assetType:$('#txAsset').value,amount:Number($('#txAmount').value||0),owner:$('#txOwner').value,description:$('#txDesc').value},null,2)}; const a=$('#appendBtn'); if(a)a.onclick=()=>alert('Writeback is intentionally staged. Next step: connect OneDrive and map workbook table columns.');},0);}
+const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
+function nav(){const n=$('#bottomNav'); n.innerHTML=screens.map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join(''); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);};}
+function show(id){try{current=id; document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); const t=$('#errorTemplate'); const n=t.content.cloneNode(true); n.querySelector('[data-error]').textContent=(err&&err.message)||String(err); app().innerHTML=''; app().appendChild(n);}}
+async function load(){setMode(); nav(); try{const r=await fetch('data/ledger-fallback.json?v=20260625-patch3',{cache:'no-store'}); DATA=await r.json();}catch(e){console.error(e); DATA={metrics:{currentAccountBalance:0,sales2026:0,lifetimeSales:6531.6,lifetimeParking:2403,ticketActivity:4128.6},activeFunds:[],seatAccounts:[],parking:[],history:[],postseason2025:[]};} const cb=$('#connectBtn'); if(cb) cb.onclick=async()=>{try{if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded'); const res=await window.HTCC_GRAPH.connect(); $('#dataMode').textContent='OneDrive connected'; alert('Connected as '+(res.account&&res.account.username||'Microsoft account'));}catch(e){alert(e.message||String(e));}}; show(current);}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',load);else load();
+})();
