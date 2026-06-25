@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch18-history-timeline';
+  const VERSION = 'v2026.06.25-patch19-seat-parking-polish';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -352,8 +352,17 @@
   function renderSeats(){
     const live=ledgerAvailable();
     const seatRows=live?seatBalances():DATA.seatAccounts.map(s=>({name:s.seat,owner:s.owner,amount:s.balance,recent:0}));
-    const cards=seatRows.map(s=>card(s.name,money(s.amount),`Owner: ${s.owner} · ${s.recent||0} ledger rows`,s.amount<0?'neg':'' )).join('');
-    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`${seasonSelectorBlock()}<div class="grid">${cards}</div>${live?notice(scopeNote('Live seat view')+' These are <b>net seat balances</b>: seat-column credits/payments plus allocated seat costs. For 2026, season tickets are fully paid, so the baseline should show $0 until resale/sale activity creates a new balance.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Accounting Audit</p>${live?seatAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows().filter(t=>seatNames.some(seat=>Math.abs(Number(t[seat]||0))+Math.abs(seatExpenseShare(t,seat))>0.005)),20):''}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);
+    const scoped=live?scopeRows():[];
+    const ticketRows=live?scoped.filter(t=>String(t.AssetType||'').toLowerCase().includes('ticket')):[];
+    const ticketSales=round2(ticketRows.filter(t=>rowTotal(t)>0 && activityKind(t)==='Sale / Resale').reduce((a,t)=>a+rowTotal(t),0));
+    const ticketCosts=round2(ticketRows.filter(t=>rowTotal(t)<0 || activityKind(t)==='Cost / Purchase').reduce((a,t)=>a+rowTotal(t),0));
+    const openSeatBalances=seatRows.filter(s=>Math.abs(s.amount)>0.005);
+    const settled = live && openSeatBalances.length===0;
+    const summaryCards = settled
+      ? `${card('Seat Status','Fully Paid','no open 2026 seat balance')}${card('Open Seat Balance',money(0),'nothing owed or due by seat')}${card('Ticket Sales',money(ticketSales),'sales/resales in this scope')}${card('Ticket Costs',money(ticketCosts),'purchases/costs in this scope',ticketCosts<0?'neg':'')}`
+      : `${card('Open Seat Balances',String(openSeatBalances.length),'seats with non-zero net')}${card('Total Seat Net',money(round2(seatRows.reduce((a,s)=>a+s.amount,0))),'credits plus allocated costs')}${card('Ticket Sales',money(ticketSales),'sales/resales in this scope')}${card('Ticket Costs',money(ticketCosts),'purchases/costs in this scope',ticketCosts<0?'neg':'')}`;
+    const seatCards=seatRows.map(s=>card(s.name,money(s.amount),s.amount===0?'settled / no open balance':`Owner: ${s.owner} · ${s.recent||0} ledger rows`,s.amount<0?'neg':'' )).join('');
+    layout('Seats','Seat Cost & Credit Tracker','A member-friendly view of ticket/seat activity. Parking is intentionally excluded because parking is member-level, not seat-level.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Seat Summary</p><div class="grid two">${summaryCards}</div>${notice((live?scopeNote('Seat tracker')+' ':'')+'<b>How to read this page:</b> each seat should normally sit at $0.00 when that seat is fully paid and settled. Positive means the seat has credit/value due back. Negative means the seat has an open cost/amount due.')}<p class="eyebrow" style="margin-top:26px">Seat Balances</p><div class="grid">${seatCards}</div><p class="eyebrow" style="margin-top:26px">Ticket Activity Rows</p>${live?memberActivityTable(ticketRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20):refreshBlock()}<details class="card"><summary><b>Manager audit: seat accounting details</b></summary><p class="sub">This section is for Dennis to verify workbook math.</p>${live?seatAuditTable():''}<p class="eyebrow" style="margin-top:18px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}</details>`);
     bindSeasonSelector(); bindRefresh();
   }
   function renderParking(){
@@ -361,35 +370,14 @@
     const pRows=live?parkingTotals():DATA.parking.map(p=>({name:p.year,amount:p.amount,count:0}));
     const total=live?round2(pRows.reduce((a,p)=>a+p.amount,0)):DATA.parking.reduce((a,p)=>a+p.amount,0);
     const parkingRows=live?scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking')):[];
-    layout('Parking','Parking Pass Tracker','Parking is tracked at the member level, not the seat level. This page separates parking activity from game-ticket seat accounting.',`${seasonSelectorBlock()}<div class="grid">${pRows.map(p=>card(p.name,money(p.amount),live?`${p.count} parking ledger rows`:(p.amount?'member-level split':'nothing yet'),p.amount<0?'neg':'')).join('')}${card('Parking Total',money(total),live?'scoped parking rows only':'historical fallback total',total<0?'neg':'')}</div>${notice((live?scopeNote('Live parking view')+' ':'')+'<b>Parking rule:</b> parking charges and sales hit member columns only. They should not hit DennisSeat1, JoelSeat, KyleSeat, SethSeat, or DennisSeat2.')} ${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count]))+'<p class="eyebrow" style="margin-top:26px">Parking Audit Rows</p>'+auditTxnTable(parkingRows,20):refreshBlock()}`);
+    const sales=round2(parkingRows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0));
+    const costs=round2(parkingRows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0));
+    const openMembers=pRows.filter(p=>Math.abs(p.amount)>0.005);
+    const headline=live && openMembers.length===0
+      ? `${card('Parking Status','Settled','no open parking balance')}${card('Parking Fund Impact',money(total),'net parking activity in this scope')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`
+      : `${card('Open Parking Members',String(openMembers.length),'members with non-zero parking net')}${card('Parking Fund Impact',money(total),'net parking activity in this scope',total<0?'neg':'')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`;
+    layout('Parking','Parking Money Tracker','Parking is tracked by member. This page answers who has parking activity, what has been sold, and whether parking money affects the fund.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Parking Summary</p><div class="grid two">${headline}</div>${notice((live?scopeNote('Parking tracker')+' ':'')+'<b>Parking rule:</b> parking is member-level. It should affect Dennis, Joel, Kyle, or Seth, but it should not affect seat columns.')}<p class="eyebrow" style="margin-top:26px">Member Parking Balances</p><div class="grid">${pRows.map(p=>card(p.name,money(p.amount),p.amount===0?'settled / no open balance':`${p.count} parking ledger rows`,p.amount<0?'neg':'')).join('')}</div><p class="eyebrow" style="margin-top:26px">Parking Activity Rows</p>${live?memberActivityTable(parkingRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20):refreshBlock()}<details class="card"><summary><b>Manager audit: parking totals</b></summary>${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count])):''}</details>`);
     bindSeasonSelector(); bindRefresh();
-  }
-  function activityKind(t){
-    const txt=[t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].map(x=>String(x||'').toLowerCase()).join(' ');
-    if(txt.includes('parking')) return 'Parking';
-    if(txt.includes('resale') || txt.includes('sale')) return 'Sale / Resale';
-    if(txt.includes('purchase') || txt.includes('season') || txt.includes('installment') || txt.includes('fee') || txt.includes('tax') || txt.includes('travel')) return 'Cost / Purchase';
-    if(txt.includes('top') || txt.includes('donation') || txt.includes('adjust') || txt.includes('credit') || txt.includes('reimburse') || txt.includes('reversal')) return 'Adjustment';
-    return 'Other';
-  }
-  function activityRows(kind='All',limit=30){
-    const rows=scopeRows();
-    return [...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).filter(t=>kind==='All'||activityKind(t)===kind).slice(0,limit);
-  }
-  function activitySummary(rows){
-    const sum=kind=>round2(rows.filter(t=>activityKind(t)===kind).reduce((a,t)=>a+rowTotal(t),0));
-    return {sales:sum('Sale / Resale'),parking:sum('Parking'),costs:sum('Cost / Purchase'),adjustments:sum('Adjustment'),other:sum('Other'),count:rows.length};
-  }
-  function memberActivityTable(rows,limit=30){
-    const picked=rows.slice(0,limit);
-    if(!picked.length) return notice('<b>No fund activity found</b> for this season/scope.');
-    return table(['Date','Activity','Game/Event','Category','Amount'],picked.map(t=>[
-      t.TxnDate||'—',
-      activityKind(t),
-      t.Game||t.Description||'—',
-      t.Category||t.TransactionType||t.AssetType||'—',
-      money(rowTotal(t))
-    ]));
   }
   function renderHistory(){
     const live=ledgerAvailable();
