@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch17b-last-activity';
+  const VERSION = 'v2026.06.25-patch18-history-timeline';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -364,7 +364,51 @@
     layout('Parking','Parking Pass Tracker','Parking is tracked at the member level, not the seat level. This page separates parking activity from game-ticket seat accounting.',`${seasonSelectorBlock()}<div class="grid">${pRows.map(p=>card(p.name,money(p.amount),live?`${p.count} parking ledger rows`:(p.amount?'member-level split':'nothing yet'),p.amount<0?'neg':'')).join('')}${card('Parking Total',money(total),live?'scoped parking rows only':'historical fallback total',total<0?'neg':'')}</div>${notice((live?scopeNote('Live parking view')+' ':'')+'<b>Parking rule:</b> parking charges and sales hit member columns only. They should not hit DennisSeat1, JoelSeat, KyleSeat, SethSeat, or DennisSeat2.')} ${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count]))+'<p class="eyebrow" style="margin-top:26px">Parking Audit Rows</p>'+auditTxnTable(parkingRows,20):refreshBlock()}`);
     bindSeasonSelector(); bindRefresh();
   }
-  function renderHistory(){layout('Hoosier History','Season Rewind','History gives the dashboard some soul, but it stays separate from the accounting ledger.',`${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);}
+  function activityKind(t){
+    const txt=[t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].map(x=>String(x||'').toLowerCase()).join(' ');
+    if(txt.includes('parking')) return 'Parking';
+    if(txt.includes('resale') || txt.includes('sale')) return 'Sale / Resale';
+    if(txt.includes('purchase') || txt.includes('season') || txt.includes('installment') || txt.includes('fee') || txt.includes('tax') || txt.includes('travel')) return 'Cost / Purchase';
+    if(txt.includes('top') || txt.includes('donation') || txt.includes('adjust') || txt.includes('credit') || txt.includes('reimburse') || txt.includes('reversal')) return 'Adjustment';
+    return 'Other';
+  }
+  function activityRows(kind='All',limit=30){
+    const rows=scopeRows();
+    return [...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).filter(t=>kind==='All'||activityKind(t)===kind).slice(0,limit);
+  }
+  function activitySummary(rows){
+    const sum=kind=>round2(rows.filter(t=>activityKind(t)===kind).reduce((a,t)=>a+rowTotal(t),0));
+    return {sales:sum('Sale / Resale'),parking:sum('Parking'),costs:sum('Cost / Purchase'),adjustments:sum('Adjustment'),other:sum('Other'),count:rows.length};
+  }
+  function memberActivityTable(rows,limit=30){
+    const picked=rows.slice(0,limit);
+    if(!picked.length) return notice('<b>No fund activity found</b> for this season/scope.');
+    return table(['Date','Activity','Game/Event','Category','Amount'],picked.map(t=>[
+      t.TxnDate||'—',
+      activityKind(t),
+      t.Game||t.Description||'—',
+      t.Category||t.TransactionType||t.AssetType||'—',
+      money(rowTotal(t))
+    ]));
+  }
+  function renderHistory(){
+    const live=ledgerAvailable();
+    if(!live){
+      layout('History','Fund Activity Timeline','A member-friendly activity feed will appear here after OneDrive or the public snapshot loads.',`${refreshBlock()}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
+      bindRefresh();
+      return;
+    }
+    const rows=scopeRows();
+    const summary=activitySummary(rows);
+    const all=activityRows('All',40);
+    const sales=activityRows('Sale / Resale',20);
+    const parking=activityRows('Parking',20);
+    const costs=activityRows('Cost / Purchase',20);
+    const adjustments=activityRows('Adjustment',20);
+    layout('History','Fund Activity Timeline','A member-friendly view of what happened: sales, costs, parking, adjustments, and season history.',`${seasonSelectorBlock()}<div class="grid">${card('Sales / Resales',money(summary.sales),'ticket sale and resale activity')}${card('Parking Activity',money(summary.parking),'parking sales, costs, and usage',summary.parking<0?'neg':'')}${card('Costs / Purchases',money(summary.costs),'season, postseason, fees, travel',summary.costs<0?'neg':'')}${card('Adjustments',money(summary.adjustments),'top-offs, credits, reimbursements, reversals',summary.adjustments<0?'neg':'')}${card('Rows in Scope',String(summary.count),'transactions feeding this view')}${card('Current Scope',selectedSeasonLabel(),'use selector to switch seasons')}</div>${notice(scopeNote('History timeline')+' This page hides transaction IDs in the main activity feed and focuses on category, amount, event, and date.')}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${memberActivityTable(all,25)}<p class="eyebrow" style="margin-top:26px">Ticket Sales / Resales</p>${memberActivityTable(sales,15)}<p class="eyebrow" style="margin-top:26px">Parking Activity</p>${memberActivityTable(parking,15)}<p class="eyebrow" style="margin-top:26px">Costs, Purchases, and Adjustments</p>${memberActivityTable([...costs,...adjustments].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20)}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
+    bindSeasonSelector();
+    bindRefresh();
+  }
   function renderSettle(){
     const live=ledgerAvailable();
     const balances=live?memberBalances():DATA.activeFunds.map(f=>({name:f.name,amount:f.balance,recent:0}));
