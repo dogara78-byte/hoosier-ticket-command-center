@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch11-public-snapshot';
+  const VERSION = 'v2026.06.25-patch12-current-season-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
