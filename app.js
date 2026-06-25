@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch12-current-season-fix';
+  const VERSION = 'v2026.06.25-patch13-accounting-rules';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -159,24 +159,82 @@
   function scopeNote(label){
     return `<b>${label}:</b> live totals are scoped to the active season (${activeSeason()}) so old 2024/2025 history does not distort current balances.`;
   }
+  function rowTotal(t){return Number(t.TotalAmount||0);}
+  function activeSeatKeysForSeason(season=activeSeason()){
+    // Seth's seat is historical; Dennis Seat 2 is active for 2026.
+    return Number(season)>=2026?['DennisSeat1','JoelSeat','KyleSeat','DennisSeat2']:['DennisSeat1','JoelSeat','KyleSeat','SethSeat'];
+  }
+  function seatToPerson(seat){
+    return seat==='DennisSeat1'||seat==='DennisSeat2'?'Dennis':seat==='JoelSeat'?'Joel':seat==='KyleSeat'?'Kyle':seat==='SethSeat'?'Seth':'Dennis';
+  }
+  function rawPersonCredits(t,name){
+    // Member columns represent cash/credit/proceeds attributed to that member.
+    // Dennis_x2 is Dennis's second-seat money, not a fifth person.
+    return round2(Number(t[name]||0) + (name==='Dennis'?Number(t.Dennis_x2||0):0));
+  }
+  function expenseShareByPerson(t,name){
+    const total=rowTotal(t);
+    if(total>=0) return 0;
+    const alloc=String(t.AllocationType||'').toLowerCase();
+    const season=Number(t.Season||t.SourceYear||activeSeason());
+    if(alloc.includes('seat')){
+      const seats=activeSeatKeysForSeason(season);
+      const per=round2(total/seats.length);
+      return round2(seats.filter(seat=>seatToPerson(seat)===name).reduce(a=>a+per,0));
+    }
+    if(alloc.includes('dennis joel kyle')){
+      return ['Dennis','Joel','Kyle'].includes(name)?round2(total/3):0;
+    }
+    if(alloc.includes('member split')){
+      const members=['Dennis','Joel','Kyle','Seth'];
+      return members.includes(name)?round2(total/members.length):0;
+    }
+    if(alloc.includes('member specific') || alloc.includes('owner')){
+      const ranked=['Dennis','Joel','Kyle','Seth'].map(m=>[m,Math.abs(rawPersonCredits(t,m))]).sort((a,b)=>b[1]-a[1]);
+      const owner=ranked[0]&&ranked[0][1]>0?ranked[0][0]:'Dennis';
+      return name===owner?total:0;
+    }
+    return 0;
+  }
   function personAmount(rows,name){
-    // Dennis_x2 is Dennis's second-seat accounting column, not a separate person.
-    return name==='Dennis'?round2(sumField(rows,'Dennis')+sumField(rows,'Dennis_x2')):sumField(rows,name);
+    // Settlement rule: positive means the member is owed money back from the fund;
+    // negative means the member owes money into the fund.
+    // For cost rows, member columns are treated as payments/credits and the cost is allocated separately.
+    return round2(rows.reduce((bal,t)=>{
+      const credits=rawPersonCredits(t,name);
+      const cost=expenseShareByPerson(t,name);
+      return bal + credits + cost;
+    },0));
   }
   function personHitCount(rows,name){
-    return rows.filter(t=>Number(t[name]||0)!==0 || (name==='Dennis'&&Number(t.Dennis_x2||0)!==0)).length;
+    return rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length;
   }
   function memberBalances(){
     const rows=seasonRows();
     return memberNames.map(name=>({key:name,name:memberLabels[name],amount:personAmount(rows,name),recent:personHitCount(rows,name)}));
   }
+  function seatExpenseShare(t,seat){
+    const total=rowTotal(t);
+    if(total>=0) return 0;
+    const alloc=String(t.AllocationType||'').toLowerCase();
+    const season=Number(t.Season||t.SourceYear||activeSeason());
+    const seats=activeSeatKeysForSeason(season);
+    if(alloc.includes('seat') && seats.includes(seat)) return round2(total/seats.length);
+    return 0;
+  }
+  function seatNet(rows,seat){
+    return round2(rows.reduce((bal,t)=>bal + Number(t[seat]||0) + seatExpenseShare(t,seat),0));
+  }
   function seatBalances(){
     const rows=seasonRows();
-    return seatNames.map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:sumField(rows,name),recent:rows.filter(t=>Number(t[name]||0)!==0).length}));
+    return seatNames.map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:seatNet(rows,name),recent:rows.filter(t=>Math.abs(Number(t[name]||0))+Math.abs(seatExpenseShare(t,name))>0.005).length}));
+  }
+  function parkingNetForMember(rows,name){
+    return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name) + expenseShareByPerson(t,name),0));
   }
   function parkingTotals(){
     const rows=seasonRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
-    return ['Dennis','Joel','Kyle','Seth'].map(name=>({name,amount:sumField(rows,name),count:rows.filter(t=>Number(t[name]||0)!==0).length}));
+    return ['Dennis','Joel','Kyle','Seth'].map(name=>({name,amount:parkingNetForMember(rows,name),count:rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length}));
   }
   function memberRecentRows(member,limit=6){
     return recentTxns(100).filter(t=>Number(t[member]||0)!==0 || (member==='Dennis'&&Number(t.DennisSeat1||0)!==0) || (member==='Joel'&&Number(t.JoelSeat||0)!==0) || (member==='Kyle'&&Number(t.KyleSeat||0)!==0) || (member==='Seth'&&Number(t.SethSeat||0)!==0)).slice(0,limit);
