@@ -1,0 +1,11 @@
+{
+  "meta": {
+    "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V1",
+    "publishedAt": null,
+    "rowCount": 0,
+    "latestTxn": null,
+    "notice": "Starter file. Dennis should replace this by downloading a snapshot from Manager mode after connecting OneDrive."
+  },
+  "columns": [],
+  "transactions": []
+}
