@@ -1,6 +1,6 @@
 // Copy this file to config.js and fill in real values after app registration.
 window.HTCC_CONFIG = {
-  authMode: "fallback", // fallback | graph
+  authMode: "graph", // fallback | graph
   clientId: "4c8fba96-2410-4c09-964b-182483a0b551",
   tenantId: "consumers", // use "consumers" for personal Microsoft accounts; use tenant ID for work/school
   redirectUri: "https://dogara78-byte.github.io/hoosier-ticket-command-center/",
