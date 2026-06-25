@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch16-money-clarity';
+  const VERSION = 'v2026.06.25-patch17-member-dashboard';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -312,7 +312,17 @@
     return {rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),tickets:round2(ticketRows.reduce((a,t)=>a+rowTotal(t),0)),parking:round2(parkingRows.reduce((a,t)=>a+rowTotal(t),0))};
   }
 
-  function renderScore(){const m=DATA.metrics, f=DATA.activeFunds, s=liveStats(); layout('Scoreboard','Game Day Dashboard','Current values use the 2026 baseline: all members are paid in and the ticket fund is depleted until the first sale. Workbook status and recent activity refresh after manager writeback.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('Workbook Rows',liveLedger.loaded?String(s.count):'—','live TransactionsTable rows')}${card('Latest Transaction',liveLedger.loaded?s.lastTxn:'—',liveLedger.loaded?s.lastDate:'connect OneDrive to load')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}</div>${refreshBlock()}<p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(x.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${recentTransactionsBlock(5)}`); bindRefresh();}
+  function renderScore(){
+    const m=DATA.metrics, f=DATA.activeFunds, s=liveStats();
+    const live=ledgerAvailable();
+    const sm=live?scopedMoneySummary():{tickets:0,parking:0,total:0};
+    const memberStatus = 'Everyone paid up';
+    const lastActivity = liveLedger.loaded ? `${s.lastTxn} · ${s.lastDate}` : (publicSnapshot.loaded ? 'Public snapshot loaded' : 'Connect OneDrive or publish snapshot');
+    const dataNote = liveLedger.loaded
+      ? `<b>Data status:</b> workbook loaded · ${s.count} transactions · latest ${s.lastTxn} (${s.lastDate}). <button class="small" id="refreshWorkbook">Refresh workbook</button>`
+      : (publicSnapshot.loaded ? '<b>Data status:</b> public read-only member snapshot loaded.' : '<b>Data status:</b> waiting for OneDrive or public snapshot data.');
+    layout('Scoreboard','Game Day Dashboard','A member-first view of the 2026 ticket fund: who is paid up, what money is available, and what happened recently.',`<div class="grid">${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Status',memberStatus,'Dennis, Joel, Kyle, and Seth are settled')}${card('Ticket Sales This Season',money(0),'no 2026 sale proceeds logged yet')}${card('Parking Sales This Season',money(0),'no 2026 parking sale proceeds logged yet')}${card('Next Expected Activity','First Sale','ticket or parking sale adds fund balance')}${card('Last Fund Activity',lastActivity,'latest workbook/snapshot activity')}</div>${notice('<b>2026 baseline:</b> all members are fully paid into the season and the fund is $0.00 until the first sale. This page avoids workbook row counts and transaction IDs except in the data-status note below.')}<p class="eyebrow" style="margin-top:26px">Member Fund Status</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(0)}</div><div class="sub">settled for 2026</div><div class="line"><span>Roll-forward applied</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${notice(dataNote)}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${recentTransactionsBlock(5)}`); bindRefresh();}
+
   function renderMoney(){
     const m=DATA.metrics;
     const live=ledgerAvailable();
