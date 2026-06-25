@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch9-real-workflow';
+  const VERSION = 'v2026.06.25-patch10-member-settlement';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -138,12 +138,71 @@
   function reversalOptions(){return recentTxns(20).map(t=>`<option value="${t.TxnID}">${t.TxnID} · ${t.TxnDate} · ${t.Description||t.Game||''} · ${money(t.TotalAmount)}</option>`).join('');}
   function txnById(id){return liveLedger.transactions.find(t=>String(t.TxnID)===String(id));}
 
+
+  function ledgerAvailable(){return liveLedger.loaded && liveLedger.transactions.length>0;}
+  const memberNames=['Dennis','Joel','Kyle','Seth','Dennis_x2'];
+  const seatNames=['DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2'];
+  const memberLabels={Dennis:'Dennis',Joel:'Joel',Kyle:'Kyle',Seth:'Seth',Dennis_x2:'Dennis x 2'};
+  const seatLabels={DennisSeat1:'Dennis Seat 1',JoelSeat:'Joel Seat',KyleSeat:'Kyle Seat',SethSeat:'Seth Seat',DennisSeat2:'Dennis Seat 2'};
+  const seatOwner={DennisSeat1:'Dennis',JoelSeat:'Joel',KyleSeat:'Kyle',SethSeat:'Seth',DennisSeat2:'Dennis x 2'};
+  function sumField(rows,field){return round2(rows.reduce((a,t)=>a+Number(t[field]||0),0));}
+  function txRows(){return ledgerAvailable()?liveLedger.transactions:[];}
+  function memberBalances(){
+    const rows=txRows();
+    return memberNames.map(name=>({key:name,name:memberLabels[name],amount:sumField(rows,name),recent:rows.filter(t=>Number(t[name]||0)!==0).length}));
+  }
+  function seatBalances(){
+    const rows=txRows();
+    return seatNames.map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:sumField(rows,name),recent:rows.filter(t=>Number(t[name]||0)!==0).length}));
+  }
+  function parkingTotals(){
+    const rows=txRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
+    return ['Dennis','Joel','Kyle','Seth'].map(name=>({name,amount:sumField(rows,name),count:rows.filter(t=>Number(t[name]||0)!==0).length}));
+  }
+  function memberRecentRows(member,limit=6){
+    return recentTxns(100).filter(t=>Number(t[member]||0)!==0 || (member==='Dennis'&&Number(t.DennisSeat1||0)!==0) || (member==='Joel'&&Number(t.JoelSeat||0)!==0) || (member==='Kyle'&&Number(t.KyleSeat||0)!==0) || (member==='Seth'&&Number(t.SethSeat||0)!==0)).slice(0,limit);
+  }
+  function settlementRows(){
+    const balances=memberBalances();
+    const positives=balances.filter(b=>b.amount>0.005).map(b=>({...b,remaining:b.amount}));
+    const negatives=balances.filter(b=>b.amount<-0.005).map(b=>({...b,remaining:-b.amount}));
+    const rows=[];
+    let i=0,j=0;
+    while(i<negatives.length && j<positives.length){
+      const amt=round2(Math.min(negatives[i].remaining,positives[j].remaining));
+      if(amt>0) rows.push([negatives[i].name,positives[j].name,money(amt),'Balances offset through shared fund']);
+      negatives[i].remaining=round2(negatives[i].remaining-amt);
+      positives[j].remaining=round2(positives[j].remaining-amt);
+      if(negatives[i].remaining<=0.005)i++; if(positives[j].remaining<=0.005)j++;
+    }
+    return rows;
+  }
+
   function renderScore(){const m=DATA.metrics, f=DATA.activeFunds, s=liveStats(); layout('Scoreboard','Game Day Dashboard','Current values are active 2026 fund balances. Workbook status and recent activity now refresh after manager writeback.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('Workbook Rows',liveLedger.loaded?String(s.count):'—','live TransactionsTable rows')}${card('Latest Transaction',liveLedger.loaded?s.lastTxn:'—',liveLedger.loaded?s.lastDate:'connect OneDrive to load')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}</div>${refreshBlock()}<p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(x.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${recentTransactionsBlock(5)}`); bindRefresh();}
   function renderMoney(){const m=DATA.metrics; layout('Money','Hoosier Fund Moneyline','Money is split into current active balance, historical sales handled, ticket activity, and parking activity. Recent rows below come directly from the workbook after OneDrive is connected.',`<div class="grid two">${card('Current Active Balance',money(m.currentAccountBalance),'cash currently held for 2026 active ledger')}${card('2026 Sales Logged',money(m.sales2026),'new 2026 activity')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 handled through the ledger')}${card('Ticket Activity',money(m.ticketActivity),'tickets only, parking removed')}${card('Parking Activity',money(m.lifetimeParking),'member-level parking split')}${card('Settlement If Closed Today',money(m.currentAccountBalance),'based on active ledger assumption')}</div>${notice('<b>Rule:</b> current balance and lifetime activity are intentionally separate. Old sales are history unless they rolled forward into current funds.')}${recentTransactionsBlock(12)}`); bindRefresh();}
-  function renderSeats(){layout('Seats','Seat Standings','Each ticket is treated as its own seat account. Dennis Seat 2 replaces the former fourth seat in 2026.',`<div class="grid">${DATA.seatAccounts.filter(s=>s.activeTo==='Current').map(s=>card(s.seat,money(s.balance),`Owner: ${s.owner}`)).join('')}</div><p class="eyebrow" style="margin-top:26px">Seat Accounts</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);}
-  function renderParking(){const total=DATA.parking.reduce((a,p)=>a+p.amount,0); layout('Parking','Parking Pass Tracker','Parking is separate from game tickets and allocated at the member level, not the seat level.',`<div class="grid">${DATA.parking.map(p=>card(`${p.year} Parking`,money(p.amount),p.amount?'member-level split':'nothing yet')).join('')}${card('Lifetime Parking',money(total),'total handled')}</div>${liveLedger.loaded?recentTransactionsBlock(5):''}`); bindRefresh();}
+  function renderSeats(){
+    const live=ledgerAvailable();
+    const seatRows=live?seatBalances():DATA.seatAccounts.map(s=>({name:s.seat,owner:s.owner,amount:s.balance,recent:0}));
+    const cards=seatRows.map(s=>card(s.name,money(s.amount),`Owner: ${s.owner} · ${s.recent||0} ledger rows`,s.amount<0?'neg':'' )).join('');
+    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`<div class="grid">${cards}</div>${live?notice('<b>Live seat view:</b> totals are calculated from the OneDrive TransactionsTable seat columns. Dennis Seat 2 is active for 2026.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}${live?recentTransactionsBlock(8):''}`);
+    bindRefresh();
+  }
+  function renderParking(){
+    const live=ledgerAvailable();
+    const pRows=live?parkingTotals():DATA.parking.map(p=>({name:p.year,amount:p.amount,count:0}));
+    const total=live?round2(pRows.reduce((a,p)=>a+p.amount,0)):DATA.parking.reduce((a,p)=>a+p.amount,0);
+    layout('Parking','Parking Pass Tracker','Parking is tracked at the member level, not the seat level. This page separates parking activity from game-ticket seat accounting.',`<div class="grid">${pRows.map(p=>card(p.name,money(p.amount),live?`${p.count} parking ledger rows`:(p.amount?'member-level split':'nothing yet'),p.amount<0?'neg':'')).join('')}${card('Parking Total',money(total),live?'live parking rows only':'historical fallback total',total<0?'neg':'')}</div>${notice('<b>Parking rule:</b> parking charges and sales hit member columns only. They should not hit DennisSeat1, JoelSeat, KyleSeat, SethSeat, or DennisSeat2.')} ${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count]))+recentTransactionsBlock(8):refreshBlock()}`);
+    bindRefresh();
+  }
   function renderHistory(){layout('Hoosier History','Season Rewind','History gives the dashboard some soul, but it stays separate from the accounting ledger.',`${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);}
-  function renderSettle(){layout('Settlement','Settlement Snapshot','If the shared account were closed today, this is what each active fund would receive based on the active 2026 ledger.',`${table(['Fund','Settlement'],DATA.activeFunds.map(f=>[f.name,money(f.balance)]))}${notice('<b>Assumption:</b> actual bank balance equals calculated ledger balance. No separate bank reconciliation field is used yet.')}`);}
+  function renderSettle(){
+    const live=ledgerAvailable();
+    const balances=live?memberBalances():DATA.activeFunds.map(f=>({name:f.name,amount:f.balance,recent:0}));
+    const rows=settlementRows();
+    const total=round2(balances.reduce((a,b)=>a+b.amount,0));
+    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balance cards and a practical who-owes-who settlement plan.',`<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Net Check',money(total),'should be close to zero after closed-loop settlement',Math.abs(total)>0.005?'neg':'')}</div>${live?notice('<b>Live settlement:</b> positive means the member is ahead / should receive value from the fund; negative means the member is behind / should contribute value.'):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> live member balances are already even, or there are no opposite balances to net.')}<p class="eyebrow" style="margin-top:26px">Member Balance Detail</p>${table(['Member','Balance','Ledger Rows'],balances.map(b=>[b.name,money(b.amount),b.recent||0]))}${live?transactionFiltersBlock(20):''}`);
+    bindRefresh(); bindFilters();
+  }
 
   function selectedPreset(){return presets[$('#txPreset').value]||presets.adjustment;}
   function seasonFromDate(d){return d?Number(String(d).slice(0,4)):2026;}
