@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch13-accounting-rules';
+  const VERSION = 'v2026.06.25-patch14-season-audit';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -50,6 +50,7 @@
   let connection={connected:false,isManager:false,profile:null};
   let liveLedger={loaded:false,loading:false,error:null,lastLoaded:null,transactions:[],lastWrite:null};
   let publicSnapshot={loaded:false,error:null,meta:null};
+  let selectedSeason='active';
 
   const $=s=>document.querySelector(s);
   const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -156,8 +157,34 @@
   function seasonRows(season=activeSeason()){
     return txRows().filter(t=>Number(t.Season||t.SourceYear||0)===Number(season));
   }
+  function availableSeasons(){
+    const years=txRows().map(t=>Number(t.Season||t.SourceYear||0)).filter(n=>Number.isFinite(n)&&n>2000);
+    const fallback=DATA.history.map(h=>Number(h.season)).filter(Boolean);
+    return [...new Set((years.length?years:fallback).sort((a,b)=>a-b))];
+  }
+  function selectedSeasonValue(){
+    if(selectedSeason==='all') return 'all';
+    if(selectedSeason==='active') return activeSeason();
+    return Number(selectedSeason)||activeSeason();
+  }
+  function selectedSeasonLabel(){
+    const v=selectedSeasonValue();
+    return v==='all'?'All seasons':String(v);
+  }
+  function scopeRows(){
+    if(!ledgerAvailable()) return [];
+    const v=selectedSeasonValue();
+    return v==='all'?txRows():seasonRows(v);
+  }
+  function seasonSelectorBlock(){
+    if(!ledgerAvailable()) return '';
+    const years=availableSeasons();
+    const opts=[['active','Active season ('+activeSeason()+')'],...years.map(y=>[String(y),String(y)]),['all','All seasons']];
+    return `<div class="card season-card"><div class="form"><label>Dashboard season<select id="seasonSelect">${opts.map(([v,l])=>`<option value="${v}" ${String(selectedSeason)===String(v)?'selected':''}>${l}</option>`).join('')}</select></label><div class="notice"><b>Current scope:</b> ${selectedSeasonLabel()}. The audit tables below show which rows are feeding these numbers.</div></div></div>`;
+  }
+  function bindSeasonSelector(){const el=$('#seasonSelect'); if(el)el.onchange=()=>{selectedSeason=el.value; show(current);};}
   function scopeNote(label){
-    return `<b>${label}:</b> live totals are scoped to the active season (${activeSeason()}) so old 2024/2025 history does not distort current balances.`;
+    return `<b>${label}:</b> live totals are scoped to ${selectedSeasonLabel()}. Use the season selector to compare 2024, 2025, 2026, or all seasons.`;
   }
   function rowTotal(t){return Number(t.TotalAmount||0);}
   function activeSeatKeysForSeason(season=activeSeason()){
@@ -210,7 +237,7 @@
     return rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length;
   }
   function memberBalances(){
-    const rows=seasonRows();
+    const rows=scopeRows();
     return memberNames.map(name=>({key:name,name:memberLabels[name],amount:personAmount(rows,name),recent:personHitCount(rows,name)}));
   }
   function seatExpenseShare(t,seat){
@@ -226,14 +253,14 @@
     return round2(rows.reduce((bal,t)=>bal + Number(t[seat]||0) + seatExpenseShare(t,seat),0));
   }
   function seatBalances(){
-    const rows=seasonRows();
+    const rows=scopeRows();
     return seatNames.map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:seatNet(rows,name),recent:rows.filter(t=>Math.abs(Number(t[name]||0))+Math.abs(seatExpenseShare(t,name))>0.005).length}));
   }
   function parkingNetForMember(rows,name){
     return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name) + expenseShareByPerson(t,name),0));
   }
   function parkingTotals(){
-    const rows=seasonRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
+    const rows=scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
     return ['Dennis','Joel','Kyle','Seth'].map(name=>({name,amount:parkingNetForMember(rows,name),count:rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length}));
   }
   function memberRecentRows(member,limit=6){
@@ -255,21 +282,58 @@
     return rows;
   }
 
+
+  function auditTxnTable(rows,limit=12){
+    const picked=[...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);
+    if(!picked.length) return notice('<b>Audit:</b> no rows in this scope.');
+    return table(['TxnID','Date','Season','Game/Event','Asset','Category','Total','Allocation'],picked.map(t=>[t.TxnID,t.TxnDate,t.Season,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]));
+  }
+  function personCreditTotal(rows,name){return round2(rows.reduce((a,t)=>a+rawPersonCredits(t,name),0));}
+  function personExpenseTotal(rows,name){return round2(rows.reduce((a,t)=>a+expenseShareByPerson(t,name),0));}
+  function settlementAuditTable(){
+    const rows=scopeRows();
+    return table(['Member','Member-column credits / payments','Allocated costs','Net settlement balance','Rows hit'],memberNames.map(name=>[memberLabels[name],money(personCreditTotal(rows,name)),money(personExpenseTotal(rows,name)),money(personAmount(rows,name)),personHitCount(rows,name)]));
+  }
+  function seatAuditTable(){
+    const rows=scopeRows();
+    return table(['Seat','Seat-column credits / payments','Allocated seat costs','Net seat balance','Rows hit'],seatNames.map(seat=>{
+      const credits=round2(rows.reduce((a,t)=>a+Number(t[seat]||0),0));
+      const costs=round2(rows.reduce((a,t)=>a+seatExpenseShare(t,seat),0));
+      const hits=rows.filter(t=>Math.abs(Number(t[seat]||0))+Math.abs(seatExpenseShare(t,seat))>0.005).length;
+      return [seatLabels[seat],money(credits),money(costs),money(round2(credits+costs)),hits];
+    }));
+  }
+  function scopedMoneySummary(){
+    const rows=scopeRows();
+    const ticketRows=rows.filter(t=>String(t.AssetType||'').toLowerCase().includes('ticket'));
+    const parkingRows=rows.filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
+    const positive=rows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0);
+    const negative=rows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0);
+    return {rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),tickets:round2(ticketRows.reduce((a,t)=>a+rowTotal(t),0)),parking:round2(parkingRows.reduce((a,t)=>a+rowTotal(t),0))};
+  }
+
   function renderScore(){const m=DATA.metrics, f=DATA.activeFunds, s=liveStats(); layout('Scoreboard','Game Day Dashboard','Current values are active 2026 fund balances. Workbook status and recent activity now refresh after manager writeback.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('Workbook Rows',liveLedger.loaded?String(s.count):'—','live TransactionsTable rows')}${card('Latest Transaction',liveLedger.loaded?s.lastTxn:'—',liveLedger.loaded?s.lastDate:'connect OneDrive to load')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}</div>${refreshBlock()}<p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(x.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${recentTransactionsBlock(5)}`); bindRefresh();}
-  function renderMoney(){const m=DATA.metrics; layout('Money','Hoosier Fund Moneyline','Money is split into current active balance, historical sales handled, ticket activity, and parking activity. Recent rows below come directly from the workbook after OneDrive is connected.',`<div class="grid two">${card('Current Active Balance',money(m.currentAccountBalance),'cash currently held for 2026 active ledger')}${card('2026 Sales Logged',money(m.sales2026),'new 2026 activity')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 handled through the ledger')}${card('Ticket Activity',money(m.ticketActivity),'tickets only, parking removed')}${card('Parking Activity',money(m.lifetimeParking),'member-level parking split')}${card('Settlement If Closed Today',money(m.currentAccountBalance),'based on active ledger assumption')}</div>${notice('<b>Rule:</b> current balance and lifetime activity are intentionally separate. Old sales are history unless they rolled forward into current funds.')}${recentTransactionsBlock(12)}`); bindRefresh();}
+  function renderMoney(){
+    const m=DATA.metrics;
+    const live=ledgerAvailable();
+    const sm=live?scopedMoneySummary():null;
+    layout('Money','Hoosier Fund Moneyline','Money is split into current active balance, historical sales handled, ticket activity, and parking activity. Recent rows below come directly from the workbook after OneDrive is connected.',`${seasonSelectorBlock()}<div class="grid two">${card('Scoped Net Activity',live?money(sm.total):money(m.currentAccountBalance),live?'scope: '+selectedSeasonLabel():'cash currently held for 2026 active ledger')}${card('Scoped Positive Rows',live?money(sm.positive):money(m.sales2026),live?'sales / credits / inflows':'new 2026 activity')}${card('Scoped Cost Rows',live?money(sm.negative):money(0),live?'purchases / expenses / outflows':'connect workbook for live costs')}${card('Ticket Activity',live?money(sm.tickets):money(m.ticketActivity),'tickets only, parking removed')}${card('Parking Activity',live?money(sm.parking):money(m.lifetimeParking),'member-level parking split')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'2024 + 2025 handled through the ledger')}</div>${notice('<b>Rule:</b> scoped net activity is an audit view. Settlement uses member credits/payments minus allocated costs, not blind row totals.')}${live?'<p class="eyebrow" style="margin-top:26px">Money Audit Rows</p>'+auditTxnTable(scopeRows(),12):''}${recentTransactionsBlock(12)}`);
+    bindSeasonSelector(); bindRefresh();
+  }
   function renderSeats(){
     const live=ledgerAvailable();
     const seatRows=live?seatBalances():DATA.seatAccounts.map(s=>({name:s.seat,owner:s.owner,amount:s.balance,recent:0}));
     const cards=seatRows.map(s=>card(s.name,money(s.amount),`Owner: ${s.owner} · ${s.recent||0} ledger rows`,s.amount<0?'neg':'' )).join('');
-    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`<div class="grid">${cards}</div>${live?notice(scopeNote('Live seat view')+' Dennis Seat 2 is active for 2026.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}${live?recentTransactionsBlock(8):''}`);
-    bindRefresh();
+    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`${seasonSelectorBlock()}<div class="grid">${cards}</div>${live?notice(scopeNote('Live seat view')+' These are <b>net seat balances</b>: seat-column credits/payments plus allocated seat costs.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Accounting Audit</p>${live?seatAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows().filter(t=>seatNames.some(seat=>Math.abs(Number(t[seat]||0))+Math.abs(seatExpenseShare(t,seat))>0.005)),20):''}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);
+    bindSeasonSelector(); bindRefresh();
   }
   function renderParking(){
     const live=ledgerAvailable();
     const pRows=live?parkingTotals():DATA.parking.map(p=>({name:p.year,amount:p.amount,count:0}));
     const total=live?round2(pRows.reduce((a,p)=>a+p.amount,0)):DATA.parking.reduce((a,p)=>a+p.amount,0);
-    layout('Parking','Parking Pass Tracker','Parking is tracked at the member level, not the seat level. This page separates parking activity from game-ticket seat accounting.',`<div class="grid">${pRows.map(p=>card(p.name,money(p.amount),live?`${p.count} parking ledger rows`:(p.amount?'member-level split':'nothing yet'),p.amount<0?'neg':'')).join('')}${card('Parking Total',money(total),live?'live parking rows only':'historical fallback total',total<0?'neg':'')}</div>${notice((live?scopeNote('Live parking view')+' ':'')+'<b>Parking rule:</b> parking charges and sales hit member columns only. They should not hit DennisSeat1, JoelSeat, KyleSeat, SethSeat, or DennisSeat2.')} ${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count]))+recentTransactionsBlock(8):refreshBlock()}`);
-    bindRefresh();
+    const parkingRows=live?scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking')):[];
+    layout('Parking','Parking Pass Tracker','Parking is tracked at the member level, not the seat level. This page separates parking activity from game-ticket seat accounting.',`${seasonSelectorBlock()}<div class="grid">${pRows.map(p=>card(p.name,money(p.amount),live?`${p.count} parking ledger rows`:(p.amount?'member-level split':'nothing yet'),p.amount<0?'neg':'')).join('')}${card('Parking Total',money(total),live?'scoped parking rows only':'historical fallback total',total<0?'neg':'')}</div>${notice((live?scopeNote('Live parking view')+' ':'')+'<b>Parking rule:</b> parking charges and sales hit member columns only. They should not hit DennisSeat1, JoelSeat, KyleSeat, SethSeat, or DennisSeat2.')} ${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count]))+'<p class="eyebrow" style="margin-top:26px">Parking Audit Rows</p>'+auditTxnTable(parkingRows,20):refreshBlock()}`);
+    bindSeasonSelector(); bindRefresh();
   }
   function renderHistory(){layout('Hoosier History','Season Rewind','History gives the dashboard some soul, but it stays separate from the accounting ledger.',`${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);}
   function renderSettle(){
@@ -277,8 +341,8 @@
     const balances=live?memberBalances():DATA.activeFunds.map(f=>({name:f.name,amount:f.balance,recent:0}));
     const rows=settlementRows();
     const total=round2(balances.reduce((a,b)=>a+b.amount,0));
-    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balance cards and a practical who-owes-who settlement plan.',`<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Net Check',money(total),'should be close to zero after closed-loop settlement',Math.abs(total)>0.005?'neg':'')}</div>${live?notice(scopeNote('Live settlement')+' Positive means the member is ahead / should receive value from the fund; negative means the member is behind / should contribute value. Dennis_x2 is rolled into Dennis, not shown as a separate person.'):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> live member balances are already even, or there are no opposite balances to net.')}<p class="eyebrow" style="margin-top:26px">Member Balance Detail</p>${table(['Member','Balance','Ledger Rows'],balances.map(b=>[b.name,money(b.amount),b.recent||0]))}${live?transactionFiltersBlock(20):''}`);
-    bindRefresh(); bindFilters();
+    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balance cards and a practical who-owes-who settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Net Check',money(total),'should be close to zero after closed-loop settlement',Math.abs(total)>0.005?'neg':'')}</div>${live?notice(scopeNote('Live settlement')+' <b>Positive means this member is owed money back from the fund. Negative means this member owes money into the fund.</b> Dennis_x2 is rolled into Dennis, not shown as a separate person.'):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> live member balances are already even, or there are no opposite balances to net.')}<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`);
+    bindSeasonSelector(); bindRefresh(); bindFilters();
   }
 
   function selectedPreset(){return presets[$('#txPreset').value]||presets.adjustment;}
