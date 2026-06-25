@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch14-season-audit';
+  const VERSION = 'v2026.06.25-patch15-fund-baseline';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -184,7 +184,7 @@
   }
   function bindSeasonSelector(){const el=$('#seasonSelect'); if(el)el.onchange=()=>{selectedSeason=el.value; show(current);};}
   function scopeNote(label){
-    return `<b>${label}:</b> live totals are scoped to ${selectedSeasonLabel()}. Use the season selector to compare 2024, 2025, 2026, or all seasons.`;
+    return `<b>${label}:</b> live totals are scoped to ${selectedSeasonLabel()}. Use the season selector to compare 2024, 2025, 2026, or all seasons. The 2026 baseline assumes all members are fully paid and the fund is depleted until the first sale.`;
   }
   function rowTotal(t){return Number(t.TotalAmount||0);}
   function activeSeatKeysForSeason(season=activeSeason()){
@@ -266,19 +266,19 @@
   function memberRecentRows(member,limit=6){
     return recentTxns(100).filter(t=>Number(t[member]||0)!==0 || (member==='Dennis'&&Number(t.DennisSeat1||0)!==0) || (member==='Joel'&&Number(t.JoelSeat||0)!==0) || (member==='Kyle'&&Number(t.KyleSeat||0)!==0) || (member==='Seth'&&Number(t.SethSeat||0)!==0)).slice(0,limit);
   }
+  function fundPositionFromBalances(balances=memberBalances()){
+    // Positive fund position means cash/proceeds exist to distribute or carry forward.
+    // Negative means the selected scope is underfunded and members owe money in.
+    // For 2026, Dennis confirmed the baseline: all members are fully paid and the fund is depleted until the first sale.
+    return round2(balances.reduce((a,b)=>a+b.amount,0));
+  }
   function settlementRows(){
     const balances=memberBalances();
-    const positives=balances.filter(b=>b.amount>0.005).map(b=>({...b,remaining:b.amount}));
-    const negatives=balances.filter(b=>b.amount<-0.005).map(b=>({...b,remaining:-b.amount}));
     const rows=[];
-    let i=0,j=0;
-    while(i<negatives.length && j<positives.length){
-      const amt=round2(Math.min(negatives[i].remaining,positives[j].remaining));
-      if(amt>0) rows.push([negatives[i].name,positives[j].name,money(amt),'Balances offset through shared fund']);
-      negatives[i].remaining=round2(negatives[i].remaining-amt);
-      positives[j].remaining=round2(positives[j].remaining-amt);
-      if(negatives[i].remaining<=0.005)i++; if(positives[j].remaining<=0.005)j++;
-    }
+    balances.forEach(b=>{
+      if(b.amount>0.005) rows.push(['Ticket Fund',b.name,money(b.amount),'Fund owes this member if the season/scope closed today']);
+      if(b.amount<-0.005) rows.push([b.name,'Ticket Fund',money(-b.amount),'Member owes the shared fund if the season/scope closed today']);
+    });
     return rows;
   }
 
@@ -312,7 +312,7 @@
     return {rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),tickets:round2(ticketRows.reduce((a,t)=>a+rowTotal(t),0)),parking:round2(parkingRows.reduce((a,t)=>a+rowTotal(t),0))};
   }
 
-  function renderScore(){const m=DATA.metrics, f=DATA.activeFunds, s=liveStats(); layout('Scoreboard','Game Day Dashboard','Current values are active 2026 fund balances. Workbook status and recent activity now refresh after manager writeback.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('Workbook Rows',liveLedger.loaded?String(s.count):'—','live TransactionsTable rows')}${card('Latest Transaction',liveLedger.loaded?s.lastTxn:'—',liveLedger.loaded?s.lastDate:'connect OneDrive to load')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}</div>${refreshBlock()}<p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(x.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${recentTransactionsBlock(5)}`); bindRefresh();}
+  function renderScore(){const m=DATA.metrics, f=DATA.activeFunds, s=liveStats(); layout('Scoreboard','Game Day Dashboard','Current values use the 2026 baseline: all members are paid in and the ticket fund is depleted until the first sale. Workbook status and recent activity refresh after manager writeback.',`<div class="grid">${card('Current Account Balance',money(m.currentAccountBalance),'2026 active ledger')}${card('Workbook Rows',liveLedger.loaded?String(s.count):'—','live TransactionsTable rows')}${card('Latest Transaction',liveLedger.loaded?s.lastTxn:'—',liveLedger.loaded?s.lastDate:'connect OneDrive to load')}${card('Lifetime Sales Handled',money0(m.lifetimeSales),'2024 + 2025 regular sales')}</div>${refreshBlock()}<p class="eyebrow" style="margin-top:26px">Active Funds</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(x.balance)}</div><div class="line"><span>Roll-forward</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div>${recentTransactionsBlock(5)}`); bindRefresh();}
   function renderMoney(){
     const m=DATA.metrics;
     const live=ledgerAvailable();
@@ -324,7 +324,7 @@
     const live=ledgerAvailable();
     const seatRows=live?seatBalances():DATA.seatAccounts.map(s=>({name:s.seat,owner:s.owner,amount:s.balance,recent:0}));
     const cards=seatRows.map(s=>card(s.name,money(s.amount),`Owner: ${s.owner} · ${s.recent||0} ledger rows`,s.amount<0?'neg':'' )).join('');
-    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`${seasonSelectorBlock()}<div class="grid">${cards}</div>${live?notice(scopeNote('Live seat view')+' These are <b>net seat balances</b>: seat-column credits/payments plus allocated seat costs.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Accounting Audit</p>${live?seatAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows().filter(t=>seatNames.some(seat=>Math.abs(Number(t[seat]||0))+Math.abs(seatExpenseShare(t,seat))>0.005)),20):''}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);
+    layout('Seats','Seat Ownership View','Ticket accounting is shown at the seat level. Parking remains member-level and is intentionally excluded from the seat view.',`${seasonSelectorBlock()}<div class="grid">${cards}</div>${live?notice(scopeNote('Live seat view')+' These are <b>net seat balances</b>: seat-column credits/payments plus allocated seat costs. For 2026, season tickets are fully paid, so the baseline should show $0 until resale/sale activity creates a new balance.'):notice('<b>Fallback seat view:</b> connect OneDrive for live seat totals.')}<p class="eyebrow" style="margin-top:26px">Seat Ledger Summary</p>${table(['Seat','Owner','Live Total','Rows Hit'],seatRows.map(s=>[s.name,s.owner,money(s.amount),s.recent||0]))}<p class="eyebrow" style="margin-top:26px">Seat Accounting Audit</p>${live?seatAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows().filter(t=>seatNames.some(seat=>Math.abs(Number(t[seat]||0))+Math.abs(seatExpenseShare(t,seat))>0.005)),20):''}<p class="eyebrow" style="margin-top:26px">Seat Account Rules</p>${table(['Seat','Owner','Active From','Active To'],DATA.seatAccounts.map(s=>[s.seat,s.owner,s.activeFrom,s.activeTo]))}`);
     bindSeasonSelector(); bindRefresh();
   }
   function renderParking(){
@@ -339,9 +339,11 @@
   function renderSettle(){
     const live=ledgerAvailable();
     const balances=live?memberBalances():DATA.activeFunds.map(f=>({name:f.name,amount:f.balance,recent:0}));
-    const rows=settlementRows();
-    const total=round2(balances.reduce((a,b)=>a+b.amount,0));
-    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balance cards and a practical who-owes-who settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Net Check',money(total),'should be close to zero after closed-loop settlement',Math.abs(total)>0.005?'neg':'')}</div>${live?notice(scopeNote('Live settlement')+' <b>Positive means this member is owed money back from the fund. Negative means this member owes money into the fund.</b> Dennis_x2 is rolled into Dennis, not shown as a separate person.'):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> live member balances are already even, or there are no opposite balances to net.')}<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`);
+    const rows=live?settlementRows():[];
+    const fundPos=live?fundPositionFromBalances(balances):0;
+    const fundTone=fundPos<0?'neg':'';
+    const fundText=fundPos>0.005?'cash/proceeds to distribute or carry forward':fundPos<-0.005?'selected scope is underfunded':'fund depleted / no balance in this scope';
+    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balances, ticket-fund position, and a practical fund settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Ticket Fund Position',money(fundPos),fundText,fundTone)}</div>${live?notice(scopeNote('Live settlement')+' <b>Positive member balance means this member is owed money back from the fund. Negative member balance means this member owes money into the fund.</b> For 2026, Dennis confirmed everyone is fully paid, so the fund starts at $0 and stays depleted until the first sale. Dennis_x2 is rolled into Dennis, not shown as a separate person.'):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Fund Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> this scope is already settled at $0.00.')}<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`);
     bindSeasonSelector(); bindRefresh(); bindFilters();
   }
 
