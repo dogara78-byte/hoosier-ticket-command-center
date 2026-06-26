@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch22-active-members';
+  const VERSION = 'v2026.06.25-patch22b-public-snapshot-preserve';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -186,7 +186,10 @@
     }
   }
   function refreshBlock(){
-    if(!connection.connected) return notice('<b>Workbook:</b> not connected yet. Click Connect OneDrive to load live transactions.');
+    if(!connection.connected){
+      if(managerRequested()) return notice('<b>Workbook:</b> not connected yet. Click Connect OneDrive to load live transactions.');
+      return notice('<b>Public snapshot:</b> no published member snapshot is loaded yet. Dennis needs to publish data/public-ledger.json from Manager mode.');
+    }
     if(liveLedger.error) return notice('<b>Workbook read issue:</b> '+(liveLedger.error.message||String(liveLedger.error)),'danger');
     if(liveLedger.loaded){const s=liveStats(); return notice(`<b>Workbook loaded:</b> ${s.count} transactions · latest ${s.lastTxn} (${s.lastDate}) · ${s.addedFromApp} added from the app. <button class="btn small" id="refreshBtn">Refresh workbook</button>`);}
     return notice('<b>Workbook connected:</b> live transaction rows have not been loaded yet. <button class="btn small" id="refreshBtn">Load workbook</button>');
