@@ -7,7 +7,7 @@ window.HTCC_CONFIG = {
   managerEmail: "dogara78@msn.com",
   workbook: {
     driveId: "7878E2EF86F2636F",
-    itemId: "7878E2EF86F2636F!sb5da11f119214bf28630dff3b872ccaa",
+    itemId: "7878E2EF86F2636F!sd55f5b0a45304570b43e0ad960d2cb43",
     tables: {
       transactions: "TransactionsTable",
       games: "GamesTable",
