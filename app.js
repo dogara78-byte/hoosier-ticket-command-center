@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch24-member-cleanup';
+  const VERSION = 'v2026.06.25-patch25-header-branding';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -76,6 +76,9 @@
   function setMode(){
     let text='Read-only member view';
     const btn=$('#connectBtn');
+    const status=$('.status');
+    const publicView=!managerRequested()&&!connection.connected;
+    if(status) status.style.display=publicView?'none':'block';
     const showManagerConnect=managerRequested() || connection.connected;
     if(btn){
       btn.style.display=showManagerConnect?'inline-flex':'none';
