@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch28e-money-sign-fix';
+  const VERSION = 'v2026.06.25-patch28f-season-reset';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -830,7 +830,7 @@
 
 
   const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
-  function show(id){try{if(id==='manager'&&!dennisView()) id='score'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
+  function show(id){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
   async function connectOneDrive(){
     if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
     if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded');
