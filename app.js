@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch29-classification-audit';
+  const VERSION = 'v2026.06.25-patch30-2026-four-fund-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -297,8 +297,16 @@
     return Number(season)>=2026?['DennisSeat1','JoelSeat','KyleSeat','DennisSeat2']:['DennisSeat1','JoelSeat','KyleSeat','SethSeat'];
   }
   function activeMemberKeysForSeason(season=activeSeason()){
-    // Seth participated historically but is not part of the 2026 fund.
+    // Public/member-facing people. Seth participated historically but is not part of the 2026 fund.
     return Number(season)>=2026?['Dennis','Joel','Kyle']:['Dennis','Joel','Kyle','Seth'];
+  }
+  function activeFundKeysForSeason(season=activeSeason()){
+    // Accounting/fund shares. For 2026 there are four active fund shares: Dennis, Joel, Kyle, and Dennis's second seat/fund.
+    // Dennis_x2 is rolled into Dennis on member-facing settlement, but it must still receive its own cost share.
+    return Number(season)>=2026?['Dennis','Joel','Kyle','Dennis_x2']:['Dennis','Joel','Kyle','Seth'];
+  }
+  function fundKeyToMember(key){
+    return key==='Dennis_x2'?'Dennis':key;
   }
   function memberKeysForCurrentScope(){
     const v=selectedSeasonValue();
@@ -339,8 +347,9 @@
       return ['Dennis','Joel','Kyle'].includes(name)?round2(total/3):0;
     }
     if(alloc.includes('member split')){
-      const members=activeMemberKeysForSeason(season);
-      return members.includes(name)?round2(total/members.length):0;
+      const funds=activeFundKeysForSeason(season);
+      const per=round2(total/funds.length);
+      return round2(funds.filter(fundKey=>fundKeyToMember(fundKey)===name).reduce(a=>a+per,0));
     }
     if(alloc.includes('member specific') || alloc.includes('owner')){
       const ranked=activeMemberKeysForSeason(season).map(m=>[m,Math.abs(rawPersonCredits(t,m))]).sort((a,b)=>b[1]-a[1]);
@@ -707,7 +716,7 @@
     const headline=live && openMembers.length===0
       ? `${card('Parking Status','Settled','no open parking balance')}${card('Parking Fund Impact',money(total),'net parking activity in this scope')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`
       : `${card('Open Parking Members',String(openMembers.length),'members with non-zero parking net')}${card('Parking Fund Impact',money(total),'net parking activity in this scope',total<0?'neg':'')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`;
-    layout('Parking','Parking Money Tracker','Parking is tracked by member. This page answers who has parking activity, what has been sold, and whether parking money affects the fund.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Parking Summary</p><div class="grid two">${headline}</div>${dennisView()?notice((live?scopeNote('Parking tracker')+' ':'')+'<b>Parking rule:</b> parking is member-level. It should affect the active members for the selected season, but it should not affect seat columns.'):''}<p class="eyebrow" style="margin-top:26px">Member Parking Balances</p><div class="grid">${pRows.map(p=>card(p.name,money(p.amount),p.amount===0?'settled / no open balance':`${p.count} parking ledger rows`,p.amount<0?'neg':'')).join('')}</div><p class="eyebrow" style="margin-top:26px">Parking Activity Rows</p>${live?memberActivityTable(parkingRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20):refreshBlock()}${dennisView()?`<details class="card"><summary><b>Manager audit: parking totals</b></summary>${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count])):''}</details>`:''}`);
+    layout('Parking','Parking Money Tracker','Parking is tracked by member. This page answers who has parking activity, what has been sold, and whether parking money affects the fund.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Parking Summary</p><div class="grid two">${headline}</div>${dennisView()?notice((live?scopeNote('Parking tracker')+' ':'')+'<b>Parking rule:</b> parking is member-level. For 2026 there are four fund shares for cost allocation: Dennis, Joel, Kyle, and Dennis x 2; Dennis x 2 is rolled into Dennis on member-facing totals. Parking should not affect seat columns.'):''}<p class="eyebrow" style="margin-top:26px">Member Parking Balances</p><div class="grid">${pRows.map(p=>card(p.name,money(p.amount),p.amount===0?'settled / no open balance':`${p.count} parking ledger rows`,p.amount<0?'neg':'')).join('')}</div><p class="eyebrow" style="margin-top:26px">Parking Activity Rows</p>${live?memberActivityTable(parkingRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20):refreshBlock()}${dennisView()?`<details class="card"><summary><b>Manager audit: parking totals</b></summary>${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count])):''}</details>`:''}`);
     bindSeasonSelector(); bindRefresh();
   }
   function renderHistory(){
@@ -735,7 +744,7 @@
     const fundPos=live?fundPositionFromBalances(balances):0;
     const fundTone=fundPos<0?'neg':'';
     const fundText=fundPos>0.005?'cash/proceeds to distribute or carry forward':fundPos<-0.005?'selected scope is underfunded':'fund depleted / no balance in this scope';
-    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balances, ticket-fund position, and a practical fund settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Ticket Fund Position',money(fundPos),fundText,fundTone)}</div>${live?(dennisView()?notice(scopeNote('Live settlement')+' <b>Positive member balance means this member is owed money back from the fund. Negative member balance means this member owes money into the fund.</b> For 2026, Dennis confirmed everyone is fully paid, so the fund starts at $0 and stays depleted until the first sale. Dennis_x2 is rolled into Dennis, not shown as a separate person.'):''):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Fund Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> this scope is already settled at $0.00.')}${dennisView()?`<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`:''}`);
+    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balances, ticket-fund position, and a practical fund settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Ticket Fund Position',money(fundPos),fundText,fundTone)}</div>${live?(dennisView()?notice(scopeNote('Live settlement')+' <b>Positive member balance means this member is owed money back from the fund. Negative member balance means this member owes money into the fund.</b> For 2026, Dennis confirmed everyone is fully paid, so the fund starts at $0 and stays depleted until the first sale. Dennis_x2 is rolled into Dennis on the member view, but it is still treated as its own 2026 fund share for cost allocation.'):''):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Fund Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> this scope is already settled at $0.00.')}${dennisView()?`<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`:''}`);
     bindSeasonSelector(); bindRefresh(); bindFilters();
   }
 
