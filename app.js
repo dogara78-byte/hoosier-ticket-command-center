@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch28c-money-breakdown';
+  const VERSION = 'v2026.06.25-patch28d-seth-direct-payout';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -508,6 +508,18 @@
     const text=rowText(t);
     return /opening balance|prior year transfer|top.?off|donation|credit|member payment|manual top/.test(text);
   }
+  function sethDirectPayoutAmount(t){
+    const season=Number(t.Season||0);
+    if(!(season===2024 || season===2025)) return 0;
+    if(!(isTrueTicketSaleRow(t) || isParkingMoneyRow(t))) return 0;
+    const seth=Number(t.Seth||0);
+    return seth>0 ? seth : 0;
+  }
+  function fundProceedsAmount(t){
+    const total=rowTotal(t);
+    const excluded=sethDirectPayoutAmount(t);
+    return round2(total-excluded);
+  }
   function rollForwardToNextSeason(year){
     if(!Number.isFinite(Number(year))) return 0;
     const next=Number(year)+1;
@@ -517,20 +529,21 @@
     const rows=scopeRows();
     const positive=rows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0);
     const negative=rows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0);
-    const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+rowTotal(t),0);
-    const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+rowTotal(t),0);
+    const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+fundProceedsAmount(t),0);
+    const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+fundProceedsAmount(t),0);
+    const sethDirectPayout=rows.reduce((a,t)=>a+sethDirectPayoutAmount(t),0);
     const ticketCosts=rows.filter(isTicketCostRow).reduce((a,t)=>a+rowTotal(t),0);
     const parkingCosts=rows.filter(isParkingCostRow).reduce((a,t)=>a+rowTotal(t),0);
     const otherCosts=rows.filter(isOtherCostRow).reduce((a,t)=>a+rowTotal(t),0);
     const memberFunding=rows.filter(isMemberFundingRow).reduce((a,t)=>a+rowTotal(t),0);
     const selected=selectedSeasonValue();
     const rollForwardNext=selected==='all'?0:rollForwardToNextSeason(selected);
-    const otherPositive=positive-ticketSales-parkingSales-memberFunding;
+    const otherPositive=positive-ticketSales-parkingSales-memberFunding-sethDirectPayout;
     return {
-      rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),
+      rows,total:round2(positive+negative-sethDirectPayout),positive:round2(positive),negative:round2(negative),
       tickets:round2(ticketSales),parking:round2(parkingSales),ticketCosts:round2(ticketCosts),
       parkingCosts:round2(parkingCosts),otherCosts:round2(otherCosts),memberFunding:round2(memberFunding),
-      otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext)
+      sethDirectPayout:round2(sethDirectPayout),otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext)
     };
   }
 
@@ -547,14 +560,24 @@
     return 'No Money Impact';
   }
   function bucketOrder(name){
-    const order=['Ticket Sales / Resales','Ticket Costs','Parking Sales / Resales','Parking Costs','Other Costs','Member / Fund Money','Other Money In','No Money Impact'];
+    const order=['Ticket Sales / Resales','Parking Sales / Resales','Seth Direct Payout','Ticket Costs','Parking Costs','Other Costs','Member / Fund Money','Other Money In','No Money Impact'];
     const ix=order.indexOf(name);
     return ix<0?99:ix;
   }
   function moneyBreakdownRows(){
-    return scopeRows()
-      .map(t=>({...t,_bucket:moneyBucket(t)}))
-      .filter(t=>t._bucket!=='No Money Impact')
+    const out=[];
+    scopeRows().forEach(t=>{
+      const bucket=moneyBucket(t);
+      if(bucket!=='No Money Impact'){
+        const amt=(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') ? fundProceedsAmount(t) : rowTotal(t);
+        out.push({...t,_bucket:bucket,_amount:amt});
+      }
+      const seth=sethDirectPayoutAmount(t);
+      if(seth>0){
+        out.push({...t,_bucket:'Seth Direct Payout',_amount:seth,Description:(t.Description||t.Game||'')+' — paid directly to Seth, not deposited to fund'});
+      }
+    });
+    return out.filter(t=>Math.abs(Number(t._amount||0))>0.004)
       .sort((a,b)=>{
         const d=bucketOrder(a._bucket)-bucketOrder(b._bucket);
         if(d) return d;
@@ -606,8 +629,8 @@
     const plainIntro = is2026
       ? '<b>2026 status:</b> everyone is paid up, no one owes money right now, and the fund is $0.00 until the first ticket or parking sale comes in.'
       : '<b>Simple read:</b> sales now count only real ticket/parking sale or resale proceeds. Member payments, top-offs, opening balances, and roll-forwards are shown separately so the fund result is not confused with gross ticket sales.';
-    const salesCards = `${card('Ticket Sales / Resales',live?money(sm.tickets):money(m.ticketActivity),'actual ticket sale and resale proceeds only')}${card('Ticket Costs',live?money(sm.ticketCosts):money(0),'season tickets, postseason tickets, upgrades, and ticket fees', (live&&sm.ticketCosts<0)?'neg':'')}${card('Parking Sales / Resales',live?money(sm.parking):money(m.lifetimeParking),'parking sale/resale money only')}${card('Parking Costs',live?money(sm.parkingCosts):money(0),'parking pass purchases and parking costs only', (live&&sm.parkingCosts<0)?'neg':'')}${card('Other Costs',live?money(sm.otherCosts):money(0),'travel, non-ticket fees, and miscellaneous expenses', (live&&sm.otherCosts<0)?'neg':'')}${card('Member / Fund Money',live?money(sm.memberFunding):money(0),'opening balance, roll-forward, credits, top-offs')}`;
-    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above use stricter classifications. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Raw Ledger Total',money(sm.total),'all positive rows plus all negative rows for '+scope, sm.total<0?'neg':'')}${card('Raw Positive Rows',money(sm.positive),'all positive TotalAmount rows')}${card('Raw Negative Rows',money(sm.negative),'all negative TotalAmount rows', sm.negative<0?'neg':'')}${card('True Ticket Sales',money(sm.tickets),'ticket sale/resale rows only')}${card('Ticket Costs',money(sm.ticketCosts),'ticket purchase/cost rows', sm.ticketCosts<0?'neg':'')}${card('Parking Sales',money(sm.parking),'parking sale/resale money')}${card('Parking Costs',money(sm.parkingCosts),'parking pass costs only', sm.parkingCosts<0?'neg':'')}${card('Other Costs',money(sm.otherCosts),'travel/fees/miscellaneous costs', sm.otherCosts<0?'neg':'')}${card('Other Positive Activity',money(sm.otherPositive),'positive rows not counted as sales or member funding')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
+    const salesCards = `${card('Ticket Sales / Resales',live?money(sm.tickets):money(m.ticketActivity),'actual ticket sale/resale proceeds deposited to the fund')}${card('Parking Sales / Resales',live?money(sm.parking):money(m.lifetimeParking),'parking sale/resale money deposited to the fund')}${card('Seth Direct Payout',live?money(sm.sethDirectPayout||0):money(0),'paid directly to Seth, not deposited to the fund')}${card('Ticket Costs',live?money(sm.ticketCosts):money(0),'season tickets, postseason tickets, upgrades, and ticket fees', (live&&sm.ticketCosts<0)?'neg':'')}${card('Parking Costs',live?money(sm.parkingCosts):money(0),'parking pass purchases and parking costs only', (live&&sm.parkingCosts<0)?'neg':'')}${card('Other Costs',live?money(sm.otherCosts):money(0),'travel, non-ticket fees, and miscellaneous expenses', (live&&sm.otherCosts<0)?'neg':'')}${card('Member / Fund Money',live?money(sm.memberFunding):money(0),'opening balance, roll-forward, credits, top-offs')}`;
+    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above use stricter classifications. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Raw Ledger Total',money(sm.total),'all positive rows plus all negative rows for '+scope, sm.total<0?'neg':'')}${card('Raw Positive Rows',money(sm.positive),'all positive TotalAmount rows')}${card('Raw Negative Rows',money(sm.negative),'all negative TotalAmount rows', sm.negative<0?'neg':'')}${card('True Ticket Sales',money(sm.tickets),'ticket sale/resale rows only')}${card('Ticket Costs',money(sm.ticketCosts),'ticket purchase/cost rows', sm.ticketCosts<0?'neg':'')}${card('Parking Sales',money(sm.parking),'parking sale/resale money deposited to fund')}${card('Seth Direct Payout',money(sm.sethDirectPayout||0),'paid directly to Seth and excluded from fund proceeds')}${card('Parking Costs',money(sm.parkingCosts),'parking pass costs only', sm.parkingCosts<0?'neg':'')}${card('Other Costs',money(sm.otherCosts),'travel/fees/miscellaneous costs', sm.otherCosts<0?'neg':'')}${card('Other Positive Activity',money(sm.otherPositive),'positive rows not counted as sales, Seth payout, or member funding')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
     layout('Money','Money','Plain-English fund status for members: what is in the fund, who is paid up, what has been sold, and what has been spent.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Fund Status</p><div class="grid two">${memberFriendlyCards}</div>${notice(plainIntro)}<p class="eyebrow" style="margin-top:26px">Sales and Cost Breakdown</p><div class="grid two">${salesCards}</div><p class="eyebrow" style="margin-top:26px">Money Breakdown for ${scope}</p>${moneyBreakdownTable()}${dennisAudit}`);
     bindSeasonSelector(); bindRefresh();
   }
