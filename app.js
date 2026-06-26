@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch28d-seth-direct-payout';
+  const VERSION = 'v2026.06.25-patch28e-money-sign-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -469,44 +469,73 @@
   function isTicketRow(t){
     return String(t.AssetType||'').toLowerCase().includes('ticket') && !isParkingRow(t);
   }
+  function categoryText(t){
+    return String(t.Category||'').toLowerCase();
+  }
+  function typeText(t){
+    return String(t.TransactionType||'').toLowerCase();
+  }
+  function isSaleOrResaleText(text){
+    return /(^|\s)sale($|\s)|resale/.test(text);
+  }
+  function isPurchaseOrCostText(text){
+    return /purchase|cost|expense|fee|tax|travel|airfare|season|upgrade/.test(text);
+  }
   function isTrueTicketSaleRow(t){
-    const cat=String(t.Category||'').toLowerCase();
-    const typ=String(t.TransactionType||'').toLowerCase();
-    const total=rowTotal(t);
-    if(total<=0 || !isTicketRow(t)) return false;
-    if(/purchase|payment|fee|tax|travel|upgrade|opening|top.?off|donation|credit|adjust|transfer/.test(cat+' '+typ)) return false;
-    return /(^|\s)sale($|\s)|resale/.test(cat+' '+typ);
+    const cat=categoryText(t);
+    const typ=typeText(t);
+    const text=rowText(t);
+    if(!isTicketRow(t)) return false;
+    if(/parking|travel|airfare|fee|tax|opening|top.?off|donation|credit|adjust|transfer|member payment/.test(cat+' '+typ)) return false;
+    if(/purchase/.test(cat) && !/resale|sale/.test(cat)) return false;
+    return isSaleOrResaleText(cat+' '+typ) || (/ticket sale/.test(typ) && !/purchase/.test(cat));
   }
   function isParkingMoneyRow(t){
-    const total=rowTotal(t);
-    if(total<=0 || !isParkingRow(t)) return false;
+    if(!isParkingRow(t)) return false;
+    const cat=categoryText(t);
+    const typ=typeText(t);
     const text=rowText(t);
-    if(/purchase|cost|fee|tax|travel|expense|reimbursement|payment/.test(text)) return false;
-    return /sale|resale/.test(text);
+    if(/purchase|cost|fee|tax|travel|expense|reimbursement|payment/.test(cat+' '+typ)) return false;
+    return /parking/.test(text) && isSaleOrResaleText(cat+' '+typ+' '+text);
   }
   function isTicketCostRow(t){
-    const total=rowTotal(t);
-    if(total>=0 || !isTicketRow(t)) return false;
+    if(!isTicketRow(t)) return false;
+    const cat=categoryText(t);
+    const typ=typeText(t);
     const text=rowText(t);
-    if(/parking|travel/.test(text)) return false;
-    return /purchase|season|postseason|ticket|upgrade|fee|tax/.test(text);
+    if(/parking|travel|airfare/.test(text)) return false;
+    if(/resale/.test(cat) || (/sale/.test(cat) && !/purchase/.test(cat))) return false;
+    return /purchase|future season ticket|postseason purchase|other game purchase|season purchase|upgrade|fees?\/taxes?|fee|tax/.test(cat+' '+typ+' '+text);
   }
   function isParkingCostRow(t){
-    const total=rowTotal(t);
-    if(total>=0 || !isParkingRow(t)) return false;
+    if(!isParkingRow(t)) return false;
+    const cat=categoryText(t);
+    const typ=typeText(t);
     const text=rowText(t);
-    return /parking|pass|purchase|cost|fee/.test(text);
+    if(/resale/.test(cat) || (/sale/.test(cat) && !/purchase/.test(cat))) return false;
+    return /future parking|postseason parking|parking purchase|season purchase|parking|pass|purchase|cost|fee/.test(cat+' '+typ+' '+text);
   }
   function isOtherCostRow(t){
-    const total=rowTotal(t);
-    if(total>=0) return false;
-    return !isTicketCostRow(t) && !isParkingCostRow(t);
+    if(isTicketCostRow(t) || isParkingCostRow(t)) return false;
+    const cat=categoryText(t);
+    const typ=typeText(t);
+    const text=rowText(t);
+    if(isMemberFundingRow(t) || isTrueTicketSaleRow(t) || isParkingMoneyRow(t)) return false;
+    if(rowTotal(t)<0) return true;
+    return /travel|airfare|fee|tax|expense|cost|purchase/.test(cat+' '+typ+' '+text);
   }
   function isMemberFundingRow(t){
     const total=rowTotal(t);
     if(total<=0) return false;
     const text=rowText(t);
     return /opening balance|prior year transfer|top.?off|donation|credit|member payment|manual top/.test(text);
+  }
+  function signedMoneyAmount(t,bucket){
+    const b=bucket || moneyBucket(t);
+    if(b==='Ticket Sales / Resales' || b==='Parking Sales / Resales') return round2(Math.max(0,fundProceedsAmount(t)));
+    if(b==='Ticket Costs' || b==='Parking Costs' || b==='Other Costs') return round2(-Math.abs(rowTotal(t)));
+    if(b==='Member / Fund Money' || b==='Other Money In' || b==='Seth Direct Payout') return round2(Math.abs(rowTotal(t)));
+    return round2(rowTotal(t));
   }
   function sethDirectPayoutAmount(t){
     const season=Number(t.Season||0);
@@ -527,20 +556,20 @@
   }
   function scopedMoneySummary(){
     const rows=scopeRows();
-    const positive=rows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0);
-    const negative=rows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0);
-    const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+fundProceedsAmount(t),0);
-    const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+fundProceedsAmount(t),0);
+    const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+signedMoneyAmount(t,'Ticket Sales / Resales'),0);
+    const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Sales / Resales'),0);
     const sethDirectPayout=rows.reduce((a,t)=>a+sethDirectPayoutAmount(t),0);
-    const ticketCosts=rows.filter(isTicketCostRow).reduce((a,t)=>a+rowTotal(t),0);
-    const parkingCosts=rows.filter(isParkingCostRow).reduce((a,t)=>a+rowTotal(t),0);
-    const otherCosts=rows.filter(isOtherCostRow).reduce((a,t)=>a+rowTotal(t),0);
-    const memberFunding=rows.filter(isMemberFundingRow).reduce((a,t)=>a+rowTotal(t),0);
+    const ticketCosts=rows.filter(isTicketCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Ticket Costs'),0);
+    const parkingCosts=rows.filter(isParkingCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Costs'),0);
+    const otherCosts=rows.filter(isOtherCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Other Costs'),0);
+    const memberFunding=rows.filter(isMemberFundingRow).reduce((a,t)=>a+signedMoneyAmount(t,'Member / Fund Money'),0);
+    const otherPositive=rows.filter(t=>moneyBucket(t)==='Other Money In').reduce((a,t)=>a+signedMoneyAmount(t,'Other Money In'),0);
+    const positive=ticketSales+parkingSales+memberFunding+otherPositive;
+    const negative=ticketCosts+parkingCosts+otherCosts;
     const selected=selectedSeasonValue();
     const rollForwardNext=selected==='all'?0:rollForwardToNextSeason(selected);
-    const otherPositive=positive-ticketSales-parkingSales-memberFunding-sethDirectPayout;
     return {
-      rows,total:round2(positive+negative-sethDirectPayout),positive:round2(positive),negative:round2(negative),
+      rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),
       tickets:round2(ticketSales),parking:round2(parkingSales),ticketCosts:round2(ticketCosts),
       parkingCosts:round2(parkingCosts),otherCosts:round2(otherCosts),memberFunding:round2(memberFunding),
       sethDirectPayout:round2(sethDirectPayout),otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext)
@@ -569,7 +598,7 @@
     scopeRows().forEach(t=>{
       const bucket=moneyBucket(t);
       if(bucket!=='No Money Impact'){
-        const amt=(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') ? fundProceedsAmount(t) : rowTotal(t);
+        const amt=signedMoneyAmount(t,bucket);
         out.push({...t,_bucket:bucket,_amount:amt});
       }
       const seth=sethDirectPayoutAmount(t);
@@ -591,13 +620,13 @@
     rows.forEach(t=>{(grouped[t._bucket]=grouped[t._bucket]||[]).push(t);});
     const sections=Object.keys(grouped).sort((a,b)=>bucketOrder(a)-bucketOrder(b)).map(bucket=>{
       const bucketRows=grouped[bucket];
-      const subtotal=round2(bucketRows.reduce((a,t)=>a+rowTotal(t),0));
+      const subtotal=round2(bucketRows.reduce((a,t)=>a+Number(t._amount||0),0));
       const body=bucketRows.map(t=>[
         t.TxnDate||'',
         t.Game||t.Description||'',
         t.Category||'',
         t.Description||'',
-        money(rowTotal(t))
+        money(t._amount)
       ]);
       const title=`<div class="breakdown-head"><span>${bucket}</span><b>${money(subtotal)}</b></div>`;
       return `${title}${table(['Date','Game/Event','Category','Description','Amount'],body)}`;
