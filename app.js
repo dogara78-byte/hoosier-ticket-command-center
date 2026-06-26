@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch30-2026-four-fund-fix';
+  const VERSION = 'v2026.06.25-patch30c-penny-tolerance';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -58,6 +58,9 @@
   const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   const money0=n=>'$'+Math.round(Number(n||0)).toLocaleString('en-US');
   const round2=v=>Math.round(Number(v||0)*100)/100;
+  const SETTLED_TOLERANCE = 1.00;
+  const closeToZero = v => Math.abs(Number(v||0)) <= SETTLED_TOLERANCE;
+  const settledAmount = v => closeToZero(v) ? 0 : round2(v);
   const escapeHtml=s=>String(s==null?'':s).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]||ch));
   function isSaleLike(t){
     const words=[t&&t.Category,t&&t.TransactionType,t&&t.Description,t&&t.AssetType].map(x=>String(x||'').toLowerCase()).join(' ');
@@ -373,7 +376,7 @@
   }
   function memberBalances(){
     const rows=scopeRows();
-    return memberKeysForCurrentScope().map(name=>({key:name,name:memberLabels[name],amount:personAmount(rows,name),recent:personHitCount(rows,name)}));
+    return memberKeysForCurrentScope().map(name=>({key:name,name:memberLabels[name],amount:settledAmount(personAmount(rows,name)),recent:personHitCount(rows,name)}));
   }
   function seatExpenseShare(t,seat){
     const total=rowCostImpact(t);
@@ -389,14 +392,14 @@
   }
   function seatBalances(){
     const rows=scopeRows();
-    return seatKeysForCurrentScope().map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:seatNet(rows,name),recent:rows.filter(t=>Math.abs(Number(t[name]||0))+Math.abs(seatExpenseShare(t,name))>0.005).length}));
+    return seatKeysForCurrentScope().map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:settledAmount(seatNet(rows,name)),recent:rows.filter(t=>Math.abs(Number(t[name]||0))+Math.abs(seatExpenseShare(t,name))>0.005).length}));
   }
   function parkingNetForMember(rows,name){
     return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name) + expenseShareByPerson(t,name),0));
   }
   function parkingTotals(){
     const rows=scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
-    return memberKeysForCurrentScope().map(name=>({name,amount:parkingNetForMember(rows,name),count:rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length}));
+    return memberKeysForCurrentScope().map(name=>({name,amount:settledAmount(parkingNetForMember(rows,name)),count:rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length}));
   }
   function memberRecentRows(member,limit=6){
     return recentTxns(100).filter(t=>Number(t[member]||0)!==0 || (member==='Dennis'&&Number(t.DennisSeat1||0)!==0) || (member==='Joel'&&Number(t.JoelSeat||0)!==0) || (member==='Kyle'&&Number(t.KyleSeat||0)!==0) || (member==='Seth'&&Number(t.SethSeat||0)!==0)).slice(0,limit);
