@@ -1,22 +1,22 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V2",
-    "publishedAt": "2026-06-26T00:53:31.836Z",
-    "rowCount": 72,
-    "latestTxn": "TXN-0072",
-    "latestDate": 46199,
+    "publishedAt": "2026-06-26T00:57:18.954Z",
+    "rowCount": 71,
+    "latestTxn": "TXN-0066",
+    "latestDate": "2026-01-30",
     "summary": {
       "season": 2026,
       "fundBalance": 0,
       "memberStatus": "Everyone paid up",
-      "ticketSales": 1810,
+      "ticketSales": 1710,
       "parkingSales": 0,
       "nextActivity": "First Sale",
       "lastFundActivity": {
-        "value": "Test · $100.00",
-        "sub": "Ticket sale test · 46199"
+        "value": "Manual Top-off · $128.36",
+        "sub": "O'Gara Topoff · 2026-01-30"
       },
-      "publishedAt": "2026-06-26T00:53:31.837Z"
+      "publishedAt": "2026-06-26T00:57:18.955Z"
     },
     "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
   },
@@ -2036,34 +2036,6 @@
       "NeedsReview": "No",
       "ReviewReason": "",
       "Notes": ""
-    },
-    {
-      "TxnID": "TXN-0072",
-      "SourceYear": 2026,
-      "SourceRow": "",
-      "TxnDate": 46199,
-      "Season": 2026,
-      "GameID": "",
-      "Game": "",
-      "AssetType": "Game Ticket",
-      "Category": "Test",
-      "TransactionType": "Graph Writeback Test",
-      "Description": "Ticket sale test",
-      "AllocationType": "Member Specific",
-      "TotalAmount": 100,
-      "Dennis": 100,
-      "Joel": 0,
-      "Kyle": 0,
-      "Seth": 0,
-      "Dennis_x2": 0,
-      "DennisSeat1": 100,
-      "JoelSeat": 0,
-      "KyleSeat": 0,
-      "SethSeat": 0,
-      "DennisSeat2": 0,
-      "NeedsReview": "No",
-      "ReviewReason": "",
-      "Notes": "Entered from Hoosier Ticket Command Center web app"
     }
   ]
 }
