@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch28f-season-reset';
+  const VERSION = 'v2026.06.25-patch29-classification-audit';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -317,17 +317,23 @@
   function rawPersonCredits(t,name){
     // Member columns represent cash/credit/proceeds attributed to that member.
     // Dennis_x2 is Dennis's second-seat money, not a fifth person.
+    // Seth's 2024/2025 sale proceeds were paid directly to Seth, not deposited to the fund.
+    if(name==='Seth' && sethDirectPayoutAmount(t)>0) return 0;
     return round2(Number(t[name]||0) + (name==='Dennis'?Number(t.Dennis_x2||0):0));
   }
+  function rowCostImpact(t){
+    if(isTicketCostRow(t) || isParkingCostRow(t) || isOtherCostRow(t)) return round2(-Math.abs(rowTotal(t)));
+    return 0;
+  }
   function expenseShareByPerson(t,name){
-    const total=rowTotal(t);
+    const total=rowCostImpact(t);
     if(total>=0) return 0;
     const alloc=String(t.AllocationType||'').toLowerCase();
     const season=Number(t.Season||t.SourceYear||activeSeason());
     if(alloc.includes('seat')){
       const seats=activeSeatKeysForSeason(season);
       const per=round2(total/seats.length);
-      return round2(seats.filter(seat=>seatToPerson(seat)===name).reduce(a=>a+per,0));
+      return round2(seats.filter(seat=>seatToPerson(seat)===name).reduce((a)=>a+per,0));
     }
     if(alloc.includes('dennis joel kyle')){
       return ['Dennis','Joel','Kyle'].includes(name)?round2(total/3):0;
@@ -361,7 +367,7 @@
     return memberKeysForCurrentScope().map(name=>({key:name,name:memberLabels[name],amount:personAmount(rows,name),recent:personHitCount(rows,name)}));
   }
   function seatExpenseShare(t,seat){
-    const total=rowTotal(t);
+    const total=rowCostImpact(t);
     if(total>=0) return 0;
     const alloc=String(t.AllocationType||'').toLowerCase();
     const season=Number(t.Season||t.SourceYear||activeSeason());
@@ -404,13 +410,17 @@
 
 
   function activityKind(t){
+    const bucket = moneyBucket(t);
+    if(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') return 'Sale / Resale';
+    if(bucket==='Ticket Costs' || bucket==='Parking Costs' || bucket==='Other Costs') return 'Cost / Purchase';
+    if(bucket==='Member / Fund Money' || bucket==='Other Money In') return 'Adjustment';
     const text = [t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].join(' ').toLowerCase();
-    const total = rowTotal(t);
     if(text.includes('parking')) return 'Parking';
-    if(text.includes('sale') || text.includes('resale')) return 'Sale / Resale';
-    if(text.includes('top-off') || text.includes('topoff') || text.includes('donation') || text.includes('adjust') || text.includes('reimbursement') || text.includes('credit') || text.includes('reversal')) return 'Adjustment';
-    if(total < 0 || text.includes('purchase') || text.includes('fee') || text.includes('tax') || text.includes('travel') || text.includes('upgrade')) return 'Cost / Purchase';
     return 'Fund Activity';
+  }
+  function activityDisplayAmount(t){
+    const bucket=moneyBucket(t);
+    return signedMoneyAmount(t,bucket);
   }
   function activityRows(kind='All',limit=25){
     let rows = scopeRows();
@@ -420,12 +430,12 @@
   function activitySummary(rows=scopeRows()){
     const out={sales:0,parking:0,costs:0,adjustments:0,count:rows.length};
     rows.forEach(t=>{
-      const amt=rowTotal(t);
-      const kind=activityKind(t);
-      if(kind==='Sale / Resale') out.sales=round2(out.sales+amt);
-      else if(kind==='Parking') out.parking=round2(out.parking+amt);
-      else if(kind==='Cost / Purchase') out.costs=round2(out.costs+amt);
-      else if(kind==='Adjustment') out.adjustments=round2(out.adjustments+amt);
+      const amt=activityDisplayAmount(t);
+      const bucket=moneyBucket(t);
+      if(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') out.sales=round2(out.sales+amt);
+      else if(bucket==='Parking Costs') out.parking=round2(out.parking+amt);
+      else if(bucket==='Ticket Costs' || bucket==='Other Costs') out.costs=round2(out.costs+amt);
+      else if(bucket==='Member / Fund Money' || bucket==='Other Money In') out.adjustments=round2(out.adjustments+amt);
     });
     return out;
   }
@@ -435,7 +445,7 @@
     return table(['Date','Activity','Game/Event','Category','Amount'],picked.map(t=>{
       const activity=activityKind(t);
       const event=t.Game || t.Description || t.TransactionType || '';
-      return [t.TxnDate || '', activity, event, t.Category || t.TransactionType || '', money(rowTotal(t))];
+      return [t.TxnDate || '', activity, event, t.Category || t.TransactionType || '', money(activityDisplayAmount(t))];
     }));
   }
 
@@ -481,38 +491,51 @@
   function isPurchaseOrCostText(text){
     return /purchase|cost|expense|fee|tax|travel|airfare|season|upgrade/.test(text);
   }
+  function isMemberFundingRow(t){
+    const total=rowTotal(t);
+    if(total<=0) return false;
+    const text=rowText(t);
+    return /opening balance|prior year transfer|top.?off|donation|credit|member payment|manual top/.test(text);
+  }
   function isTrueTicketSaleRow(t){
     const cat=categoryText(t);
     const typ=typeText(t);
     const text=rowText(t);
     if(!isTicketRow(t)) return false;
+    if(isMemberFundingRow(t)) return false;
     if(/parking|travel|airfare|fee|tax|opening|top.?off|donation|credit|adjust|transfer|member payment/.test(cat+' '+typ)) return false;
-    if(/purchase/.test(cat) && !/resale|sale/.test(cat)) return false;
-    return isSaleOrResaleText(cat+' '+typ) || (/ticket sale/.test(typ) && !/purchase/.test(cat));
+    if(/resale|(^|\s)sale($|\s)/.test(cat)) return true;
+    if(/purchase/.test(cat) && !/resale|(^|\s)sale($|\s)/.test(cat)) return false;
+    return /ticket sale|resale/.test(typ) && !/purchase/.test(cat);
   }
   function isParkingMoneyRow(t){
     if(!isParkingRow(t)) return false;
     const cat=categoryText(t);
     const typ=typeText(t);
     const text=rowText(t);
+    if(isMemberFundingRow(t)) return false;
+    // Category wins over generic TransactionType values like "Purchase/Resale".
+    if(/resale|(^|\s)sale($|\s)/.test(cat) && /parking/.test(text)) return true;
     if(/purchase|cost|fee|tax|travel|expense|reimbursement|payment/.test(cat+' '+typ)) return false;
     return /parking/.test(text) && isSaleOrResaleText(cat+' '+typ+' '+text);
   }
   function isTicketCostRow(t){
     if(!isTicketRow(t)) return false;
+    if(isMemberFundingRow(t)) return false;
     const cat=categoryText(t);
     const typ=typeText(t);
     const text=rowText(t);
     if(/parking|travel|airfare/.test(text)) return false;
-    if(/resale/.test(cat) || (/sale/.test(cat) && !/purchase/.test(cat))) return false;
+    if(/resale/.test(cat) || (/(^|\s)sale($|\s)/.test(cat) && !/purchase/.test(cat))) return false;
     return /purchase|future season ticket|postseason purchase|other game purchase|season purchase|upgrade|fees?\/taxes?|fee|tax/.test(cat+' '+typ+' '+text);
   }
   function isParkingCostRow(t){
     if(!isParkingRow(t)) return false;
+    if(isMemberFundingRow(t)) return false;
     const cat=categoryText(t);
     const typ=typeText(t);
     const text=rowText(t);
-    if(/resale/.test(cat) || (/sale/.test(cat) && !/purchase/.test(cat))) return false;
+    if(/resale/.test(cat) || (/(^|\s)sale($|\s)/.test(cat) && !/purchase/.test(cat))) return false;
     return /future parking|postseason parking|parking purchase|season purchase|parking|pass|purchase|cost|fee/.test(cat+' '+typ+' '+text);
   }
   function isOtherCostRow(t){
@@ -523,12 +546,6 @@
     if(isMemberFundingRow(t) || isTrueTicketSaleRow(t) || isParkingMoneyRow(t)) return false;
     if(rowTotal(t)<0) return true;
     return /travel|airfare|fee|tax|expense|cost|purchase/.test(cat+' '+typ+' '+text);
-  }
-  function isMemberFundingRow(t){
-    const total=rowTotal(t);
-    if(total<=0) return false;
-    const text=rowText(t);
-    return /opening balance|prior year transfer|top.?off|donation|credit|member payment|manual top/.test(text);
   }
   function signedMoneyAmount(t,bucket){
     const b=bucket || moneyBucket(t);
@@ -577,11 +594,11 @@
   }
 
   function moneyBucket(t){
-    if(isTrueTicketSaleRow(t)) return 'Ticket Sales / Resales';
-    if(isTicketCostRow(t)) return 'Ticket Costs';
-    if(isParkingMoneyRow(t)) return 'Parking Sales / Resales';
-    if(isParkingCostRow(t)) return 'Parking Costs';
     if(isMemberFundingRow(t)) return 'Member / Fund Money';
+    if(isTrueTicketSaleRow(t)) return 'Ticket Sales / Resales';
+    if(isParkingMoneyRow(t)) return 'Parking Sales / Resales';
+    if(isTicketCostRow(t)) return 'Ticket Costs';
+    if(isParkingCostRow(t)) return 'Parking Costs';
     if(isOtherCostRow(t)) return 'Other Costs';
     const total=rowTotal(t);
     if(total>0) return 'Other Money In';
@@ -684,8 +701,8 @@
     const pRows=live?parkingTotals():DATA.parking.map(p=>({name:p.year,amount:p.amount,count:0}));
     const total=live?round2(pRows.reduce((a,p)=>a+p.amount,0)):DATA.parking.reduce((a,p)=>a+p.amount,0);
     const parkingRows=live?scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking')):[];
-    const sales=round2(parkingRows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0));
-    const costs=round2(parkingRows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0));
+    const sales=round2(parkingRows.filter(isParkingMoneyRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Sales / Resales'),0));
+    const costs=round2(parkingRows.filter(isParkingCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Costs'),0));
     const openMembers=pRows.filter(p=>Math.abs(p.amount)>0.005);
     const headline=live && openMembers.length===0
       ? `${card('Parking Status','Settled','no open parking balance')}${card('Parking Fund Impact',money(total),'net parking activity in this scope')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`
@@ -707,7 +724,7 @@
     const parking=activityRows('Parking',20);
     const costs=activityRows('Cost / Purchase',20);
     const adjustments=activityRows('Adjustment',20);
-    layout('History','Fund Activity Timeline','A member-friendly view of what happened: sales, costs, parking, adjustments, and season history.',`${seasonSelectorBlock()}<div class="grid">${card('Sales / Resales',money(summary.sales),'ticket sale and resale activity')}${card('Parking Activity',money(summary.parking),'parking sales, costs, and usage',summary.parking<0?'neg':'')}${card('Costs / Purchases',money(summary.costs),'season, postseason, fees, travel',summary.costs<0?'neg':'')}${card('Adjustments',money(summary.adjustments),'top-offs, credits, reimbursements, reversals',summary.adjustments<0?'neg':'')}${card('Rows in Scope',String(summary.count),'transactions feeding this view')}${card('Current Scope',selectedSeasonLabel(),'use selector to switch seasons')}</div>${dennisView()?notice(scopeNote('History timeline')+' This page hides transaction IDs in the main activity feed and focuses on category, amount, event, and date.'):''}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${memberActivityTable(all,25)}<p class="eyebrow" style="margin-top:26px">Ticket Sales / Resales</p>${memberActivityTable(sales,15)}<p class="eyebrow" style="margin-top:26px">Parking Activity</p>${memberActivityTable(parking,15)}<p class="eyebrow" style="margin-top:26px">Costs, Purchases, and Adjustments</p>${memberActivityTable([...costs,...adjustments].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20)}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
+    layout('History','Fund Activity Timeline','A member-friendly view of what happened: sales, costs, parking, adjustments, and season history.',`${seasonSelectorBlock()}<div class="grid">${card('Sales / Resales',money(summary.sales),'ticket + parking sale/resale proceeds')}${card('Parking Activity',money(summary.parking),'parking sales, costs, and usage',summary.parking<0?'neg':'')}${card('Costs / Purchases',money(summary.costs),'season, postseason, fees, travel',summary.costs<0?'neg':'')}${card('Adjustments',money(summary.adjustments),'top-offs, credits, reimbursements, reversals',summary.adjustments<0?'neg':'')}${card('Rows in Scope',String(summary.count),'transactions feeding this view')}${card('Current Scope',selectedSeasonLabel(),'use selector to switch seasons')}</div>${dennisView()?notice(scopeNote('History timeline')+' This page hides transaction IDs in the main activity feed and focuses on category, amount, event, and date.'):''}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${memberActivityTable(all,25)}<p class="eyebrow" style="margin-top:26px">Ticket Sales / Resales</p>${memberActivityTable(sales,15)}<p class="eyebrow" style="margin-top:26px">Parking Activity</p>${memberActivityTable(parking,15)}<p class="eyebrow" style="margin-top:26px">Costs, Purchases, and Adjustments</p>${memberActivityTable([...costs,...adjustments].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20)}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
     bindSeasonSelector();
     bindRefresh();
   }
