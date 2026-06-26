@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch25-header-branding';
+  const VERSION = 'v2026.06.25-patch25b-hide-manager-tab';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -45,7 +45,9 @@
     test:{label:'TEST writeback validation',assetType:'Game Ticket',category:'Test',transactionType:'Graph Writeback Test',allocationType:'Member Specific',owner:'Dennis',sign:'positive',description:'TEST - Graph writeback validation',hint:'Use only for safe writeback testing, then delete the test row.'}
   };
 
-  const screens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['settle','🤝','Settle'],['manager','✍️','Manager']];
+  const allScreens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['settle','🤝','Settle'],['manager','✍️','Manager']];
+  const visibleScreens=()=>allScreens.filter(([id])=>id!=='manager'||dennisView());
+  function renderNav(){const n=$('#bottomNav'); if(!n) return; n.innerHTML=visibleScreens().map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join('');}
   let current='score';
   let connection={connected:false,isManager:false,profile:null};
   let liveLedger={loaded:false,loading:false,error:null,lastLoaded:null,transactions:[],lastWrite:null};
@@ -646,12 +648,12 @@
 
 
   const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
-  function show(id){try{current=id; document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
+  function show(id){try{if(id==='manager'&&!dennisView()) id='score'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
   async function connectOneDrive(){
     if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
     if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded');
     const res=await window.HTCC_GRAPH.connect(); connection.connected=true; connection.profile=res.profile||null; const email=userEmail(connection.profile); connection.isManager=!!email&&email===managerEmail(); await refreshLedger(); setMode(); show(current); alert('Connected as '+(email||'Microsoft account')+(connection.isManager?' · Manager writeback enabled':' · Read-only account')+'. Workbook rows loaded: '+(liveLedger.transactions.length||0));
   }
-  function init(){try{setMode(); const n=$('#bottomNav'); n.innerHTML=screens.map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join(''); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
+  function init(){try{setMode(); renderNav(); const n=$('#bottomNav'); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
