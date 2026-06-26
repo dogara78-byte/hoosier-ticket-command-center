@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch26-share-polish';
+  const VERSION = 'v2026.06.25-patch27-home-screen-icons';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
