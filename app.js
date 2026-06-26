@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch27-home-screen-icons';
+  const VERSION = 'v2026.06.25-patch28-money-classification';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -460,13 +460,54 @@
       return [seatLabels[seat],money(credits),money(costs),money(round2(credits+costs)),hits];
     }));
   }
+  function rowText(t){
+    return [t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].join(' ').toLowerCase();
+  }
+  function isParkingRow(t){
+    return String(t.AssetType||'').toLowerCase().includes('parking') || /parking/.test(rowText(t));
+  }
+  function isTicketRow(t){
+    return String(t.AssetType||'').toLowerCase().includes('ticket') && !isParkingRow(t);
+  }
+  function isTrueTicketSaleRow(t){
+    const cat=String(t.Category||'').toLowerCase();
+    const typ=String(t.TransactionType||'').toLowerCase();
+    const total=rowTotal(t);
+    if(total<=0 || !isTicketRow(t)) return false;
+    if(/purchase|payment|fee|tax|travel|upgrade|opening|top.?off|donation|credit|adjust|transfer/.test(cat+' '+typ)) return false;
+    return /(^|\s)sale($|\s)|resale/.test(cat+' '+typ);
+  }
+  function isParkingMoneyRow(t){
+    const total=rowTotal(t);
+    if(total<=0 || !isParkingRow(t)) return false;
+    return /sale|resale|parking/.test(rowText(t));
+  }
+  function isMemberFundingRow(t){
+    const total=rowTotal(t);
+    if(total<=0) return false;
+    const text=rowText(t);
+    return /opening balance|prior year transfer|top.?off|donation|credit|member payment|manual top/.test(text);
+  }
+  function rollForwardToNextSeason(year){
+    if(!Number.isFinite(Number(year))) return 0;
+    const next=Number(year)+1;
+    return round2(seasonRows(next).filter(isMemberFundingRow).reduce((a,t)=>a+rowTotal(t),0));
+  }
   function scopedMoneySummary(){
     const rows=scopeRows();
-    const ticketRows=rows.filter(t=>String(t.AssetType||'').toLowerCase().includes('ticket'));
-    const parkingRows=rows.filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
     const positive=rows.filter(t=>rowTotal(t)>0).reduce((a,t)=>a+rowTotal(t),0);
     const negative=rows.filter(t=>rowTotal(t)<0).reduce((a,t)=>a+rowTotal(t),0);
-    return {rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),tickets:round2(ticketRows.reduce((a,t)=>a+rowTotal(t),0)),parking:round2(parkingRows.reduce((a,t)=>a+rowTotal(t),0))};
+    const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+rowTotal(t),0);
+    const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+rowTotal(t),0);
+    const memberFunding=rows.filter(isMemberFundingRow).reduce((a,t)=>a+rowTotal(t),0);
+    const selected=selectedSeasonValue();
+    const rollForwardNext=selected==='all'?0:rollForwardToNextSeason(selected);
+    const otherPositive=positive-ticketSales-parkingSales-memberFunding;
+    return {
+      rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),
+      tickets:round2(ticketSales),parking:round2(parkingSales),memberFunding:round2(memberFunding),
+      otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext)
+    };
   }
 
   function renderScore(){
@@ -483,14 +524,17 @@
     const sm=live?scopedMoneySummary():{total:0,positive:0,negative:0,tickets:0,parking:0};
     const scope=selectedSeasonLabel();
     const is2026=live && String(selectedSeasonValue())==='2026';
+    const rollCard = (!is2026 && live && sm.rollForwardNext>0)
+      ? card('Rolled Forward to '+(Number(selectedSeasonValue())+1),money(sm.rollForwardNext),'actual amount carried into next season')
+      : card('Fund Result',money(sm.total),'money collected minus money spent for '+scope, sm.total<0?'neg':'');
     const memberFriendlyCards = is2026
       ? `${card('Fund Balance',money(0),'cash available right now')}${card('Member Status','Everyone paid up','no payments needed')}${card('Next Expected Activity','First Sale','ticket or parking sale adds money to the fund')}`
-      : `${card('Fund Result',money(sm.total),'money collected minus money spent for '+scope, sm.total<0?'neg':'')}${card('Money Collected',money(sm.positive),'sales, credits, reimbursements, and top-offs')}${card('Money Spent',money(sm.negative),'tickets, parking, fees, travel, and other costs', sm.negative<0?'neg':'')}`;
+      : `${rollCard}${card('Money Spent',money(sm.negative),'ticket, parking, fee, travel, and other cost rows', sm.negative<0?'neg':'')}${card('Member / Fund Money',money(sm.memberFunding),'roll-forward, top-offs, credits, and member funding')}`;
     const plainIntro = is2026
       ? '<b>2026 status:</b> everyone is paid up, no one owes money right now, and the fund is $0.00 until the first ticket or parking sale comes in.'
-      : '<b>Simple read:</b> this shows how much money came in, how much money went out, and what that means for the selected season. Use Settle to see who owes or is owed.';
-    const salesCards = `${card('Ticket Sales',live?money(Math.max(0,sm.tickets)):money(m.ticketActivity),'ticket sales/resales in this view')}${card('Parking Sales',live?money(Math.max(0,sm.parking)):money(m.lifetimeParking),'parking money in this view')}${card('Ticket + Parking Costs',live?money(sm.negative):money(0),'money spent by the fund', sm.negative<0?'neg':'')}${card('Recent Money Moves','See below','latest ticket fund activity')}`;
-    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above are for members. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Ledger Total',money(sm.total),'collected minus spent for '+scope, sm.total<0?'neg':'')}${card('Positive Rows',money(sm.positive),'raw positive TotalAmount rows')}${card('Negative Rows',money(sm.negative),'raw negative TotalAmount rows', sm.negative<0?'neg':'')}${card('Ticket Rows Net',money(sm.tickets),'all ticket rows in this view', sm.tickets<0?'neg':'')}${card('Parking Rows Net',money(sm.parking),'all parking rows in this view', sm.parking<0?'neg':'')}${card('Lifetime Regular Sales',money(m.lifetimeSales),'historical sales handled through the ledger')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
+      : '<b>Simple read:</b> sales now count only real ticket/parking sale or resale proceeds. Member payments, top-offs, opening balances, and roll-forwards are shown separately so the fund result is not confused with gross ticket sales.';
+    const salesCards = `${card('Ticket Sales / Resales',live?money(sm.tickets):money(m.ticketActivity),'actual ticket sale and resale proceeds only')}${card('Parking Sales',live?money(sm.parking):money(m.lifetimeParking),'parking sale/resale money only')}${card('Member / Fund Money',live?money(sm.memberFunding):money(0),'opening balance, roll-forward, credits, top-offs')}${card('Recent Money Moves','See below','latest ticket fund activity')}`;
+    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above use stricter classifications. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Raw Ledger Total',money(sm.total),'all positive rows plus all negative rows for '+scope, sm.total<0?'neg':'')}${card('Raw Positive Rows',money(sm.positive),'all positive TotalAmount rows')}${card('Raw Negative Rows',money(sm.negative),'all negative TotalAmount rows', sm.negative<0?'neg':'')}${card('True Ticket Sales',money(sm.tickets),'Category/Type Sale or Resale only')}${card('Parking Sales',money(sm.parking),'parking sale/resale money')}${card('Other Positive Activity',money(sm.otherPositive),'positive rows not counted as sales or member funding')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
     layout('Money','Money','Plain-English fund status for members: what is in the fund, who is paid up, what has been sold, and what has been spent.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Fund Status</p><div class="grid two">${memberFriendlyCards}</div>${notice(plainIntro)}<p class="eyebrow" style="margin-top:26px">Sales and Costs</p><div class="grid two">${salesCards}</div>${recentTransactionsBlock(12)}${dennisAudit}`);
     bindSeasonSelector(); bindRefresh();
   }
