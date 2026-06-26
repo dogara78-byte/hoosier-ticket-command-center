@@ -1,7 +1,7 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V2",
-    "publishedAt": "2026-06-26T14:09:50.312Z",
+    "publishedAt": "2026-06-26T16:53:30.109Z",
     "rowCount": 66,
     "latestTxn": "TXN-0066",
     "latestDate": "2026-01-30",
@@ -16,7 +16,7 @@
         "value": "Manual Top-off · $128.36",
         "sub": "O'Gara Topoff · 2026-01-30"
       },
-      "publishedAt": "2026-06-26T14:09:50.313Z"
+      "publishedAt": "2026-06-26T16:53:30.110Z"
     },
     "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
   },
@@ -1671,7 +1671,7 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "Includes sales, B1G Championship, Qtr/Semi, NCG"
+      "Notes": "2026 opening balance used first: Dennis Seat 1 $700, Joel $700, Kyle $310, Dennis Seat 2 $0."
     },
     {
       "TxnID": "TXN-0068",
@@ -1686,20 +1686,20 @@
       "TransactionType": "Season Purchase",
       "Description": "Down Payment",
       "AllocationType": "Seat Split",
-      "TotalAmount": -1750.5,
+      "TotalAmount": -1750,
       "Dennis": 0,
       "Joel": 0,
-      "Kyle": 127.62,
+      "Kyle": 127.5,
       "Seth": 0,
-      "Dennis_x2": 437.62,
+      "Dennis_x2": 437.5,
       "DennisSeat1": 0,
       "JoelSeat": 0,
-      "KyleSeat": 127.62,
+      "KyleSeat": 127.5,
       "SethSeat": 0,
-      "DennisSeat2": 437.62,
+      "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "2026 drawdown model: Kyle uses $310 fund first; remainder/out-of-pocket reflected here."
     },
     {
       "TxnID": "TXN-0072",
@@ -1715,19 +1715,19 @@
       "Description": "Down Payment",
       "AllocationType": "Member Split",
       "TotalAmount": -73.5,
-      "Dennis": 0,
-      "Joel": 0,
-      "Kyle": 18.38,
+      "Dennis": 18.375,
+      "Joel": 18.375,
+      "Kyle": 18.375,
       "Seth": 0,
-      "Dennis_x2": 18.38,
+      "Dennis_x2": 18.375,
       "DennisSeat1": 0,
       "JoelSeat": 0,
-      "KyleSeat": "",
+      "KyleSeat": 0,
       "SethSeat": 0,
-      "DennisSeat2": "",
+      "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking down payment; added to ParkingUsage"
+      "Notes": "2026 parking share: $73.50 per active fund share ($294 total / 4)."
     },
     {
       "TxnID": "TXN-0069",
@@ -1742,20 +1742,20 @@
       "TransactionType": "Season Purchase",
       "Description": "2nd Installment",
       "AllocationType": "Seat Split",
-      "TotalAmount": -1750.5,
-      "Dennis": 197.29,
-      "Joel": 197.29,
-      "Kyle": 437.62,
+      "TotalAmount": -1750,
+      "Dennis": 175,
+      "Joel": 175,
+      "Kyle": 437.5,
       "Seth": 0,
-      "Dennis_x2": 437.62,
-      "DennisSeat1": 197.29,
-      "JoelSeat": 197.29,
-      "KyleSeat": 437.62,
+      "Dennis_x2": 437.5,
+      "DennisSeat1": 175,
+      "JoelSeat": 175,
+      "KyleSeat": 437.5,
       "SethSeat": 0,
-      "DennisSeat2": 437.62,
+      "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "2026 drawdown model: Dennis/Joel remaining fund after first installment leaves $175 ticket out-of-pocket; Kyle/Dennis x2 full ticket payment."
     },
     {
       "TxnID": "TXN-0073",
@@ -1771,11 +1771,11 @@
       "Description": "2nd Installment",
       "AllocationType": "Member Split",
       "TotalAmount": -73.5,
-      "Dennis": 18.38,
-      "Joel": 18.38,
-      "Kyle": 18.38,
+      "Dennis": 18.375,
+      "Joel": 18.375,
+      "Kyle": 18.375,
       "Seth": 0,
-      "Dennis_x2": 18.38,
+      "Dennis_x2": 18.375,
       "DennisSeat1": 0,
       "JoelSeat": 0,
       "KyleSeat": 0,
@@ -1783,7 +1783,7 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking 2nd installment; added to ParkingUsage"
+      "Notes": "2026 parking share: $18.375 per active fund share."
     },
     {
       "TxnID": "TXN-0070",
@@ -1798,20 +1798,20 @@
       "TransactionType": "Season Purchase",
       "Description": "3rd Installment",
       "AllocationType": "Seat Split",
-      "TotalAmount": -1750.5,
-      "Dennis": 437.62,
-      "Joel": 437.62,
-      "Kyle": 437.62,
+      "TotalAmount": -1750,
+      "Dennis": 437.5,
+      "Joel": 437.5,
+      "Kyle": 437.5,
       "Seth": 0,
-      "Dennis_x2": 437.62,
-      "DennisSeat1": 437.62,
-      "JoelSeat": 437.62,
-      "KyleSeat": 437.62,
+      "Dennis_x2": 437.5,
+      "DennisSeat1": 437.5,
+      "JoelSeat": 437.5,
+      "KyleSeat": 437.5,
       "SethSeat": 0,
-      "DennisSeat2": 437.62,
+      "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "2026 full out-of-pocket ticket installment for all four active shares."
     },
     {
       "TxnID": "TXN-0074",
@@ -1827,11 +1827,11 @@
       "Description": "3rd Installment",
       "AllocationType": "Member Split",
       "TotalAmount": -73.5,
-      "Dennis": 18.38,
-      "Joel": 18.38,
-      "Kyle": 18.38,
+      "Dennis": 18.375,
+      "Joel": 18.375,
+      "Kyle": 18.375,
       "Seth": 0,
-      "Dennis_x2": 18.38,
+      "Dennis_x2": 18.375,
       "DennisSeat1": 0,
       "JoelSeat": 0,
       "KyleSeat": 0,
@@ -1839,7 +1839,7 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking 3rd installment; added to ParkingUsage"
+      "Notes": "2026 parking share: $18.375 per active fund share."
     },
     {
       "TxnID": "TXN-0071",
@@ -1854,20 +1854,20 @@
       "TransactionType": "Season Purchase",
       "Description": "4th Installment",
       "AllocationType": "Seat Split",
-      "TotalAmount": -1750.5,
-      "Dennis": 437.62,
-      "Joel": 437.62,
-      "Kyle": 437.62,
+      "TotalAmount": -1750,
+      "Dennis": 437.5,
+      "Joel": 437.5,
+      "Kyle": 437.5,
       "Seth": 0,
-      "Dennis_x2": 437.62,
-      "DennisSeat1": 437.62,
-      "JoelSeat": 437.62,
-      "KyleSeat": 437.62,
+      "Dennis_x2": 437.5,
+      "DennisSeat1": 437.5,
+      "JoelSeat": 437.5,
+      "KyleSeat": 437.5,
       "SethSeat": 0,
-      "DennisSeat2": 437.62,
+      "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "2026 full out-of-pocket ticket installment for all four active shares."
     },
     {
       "TxnID": "TXN-0075",
@@ -1883,11 +1883,11 @@
       "Description": "4th Installment",
       "AllocationType": "Member Split",
       "TotalAmount": -73.5,
-      "Dennis": 18.38,
-      "Joel": 18.38,
-      "Kyle": 18.38,
+      "Dennis": 18.375,
+      "Joel": 18.375,
+      "Kyle": 18.375,
       "Seth": 0,
-      "Dennis_x2": 18.38,
+      "Dennis_x2": 18.375,
       "DennisSeat1": 0,
       "JoelSeat": 0,
       "KyleSeat": 0,
@@ -1895,7 +1895,7 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking 4th installment; added to ParkingUsage"
+      "Notes": "2026 parking share: $18.375 per active fund share."
     }
   ]
 }
