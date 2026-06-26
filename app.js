@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch25b-hide-manager-tab';
+  const VERSION = 'v2026.06.25-patch26-share-polish';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -75,6 +75,17 @@
   const userEmail=profile=>String((profile&&(profile.mail||profile.userPrincipalName))||'').toLowerCase();
   const managerEmail=()=>String(cfg().managerEmail||'').toLowerCase();
 
+  function dataUpdatedText(){
+    if(connection.connected && liveLedger.lastLoaded) return 'Live workbook refreshed '+fmtDateTime(liveLedger.lastLoaded);
+    if(publicSnapshot.loaded && publicSnapshot.meta && publicSnapshot.meta.publishedAt) return 'Updated '+fmtDateTime(publicSnapshot.meta.publishedAt);
+    if(!managerRequested()) return 'Snapshot pending';
+    return '';
+  }
+  function setFooter(){
+    const el=$('#footerUpdated');
+    if(el) el.textContent=dataUpdatedText();
+  }
+
   function setMode(){
     let text='Read-only member view';
     const btn=$('#connectBtn');
@@ -94,6 +105,7 @@
     if(liveLedger.error) text='OneDrive connected · workbook read issue';
     $('#dataMode').textContent=text;
     $('#version').textContent=VERSION;
+    setFooter();
   }
   function card(title,val,sub,cls=''){return `<article class="card"><h3>${title}</h3><div class="value ${cls}">${val}</div><div class="sub">${sub||''}</div></article>`;}
   function notice(html,cls=''){return `<div class="notice ${cls}">${html}</div>`;}
@@ -462,7 +474,8 @@
     const lastFundActivity=lastFundActivityDisplay();
     const memberStatus='Everyone paid up';
     const snapshotOrLive = memberModeNotice()+snapshotMetaBlock();
-    layout('Scoreboard','Game Day Dashboard','A member-first view of the 2026 ticket fund: fund status, member status, current sales, and recent activity.',`${snapshotOrLive}<div class="grid">${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Status',memberStatus,'Dennis, Joel, and Kyle are settled')}${card('Ticket Sales This Season',money(0),'no 2026 sale proceeds logged yet')}${card('Parking Sales This Season',money(0),'no 2026 parking sale proceeds logged yet')}${card('Next Expected Activity','First Sale','ticket or parking sale adds fund balance')}${card('Last Fund Activity',lastFundActivity.value,lastFundActivity.sub)}</div>${dennisView()?notice('<b>2026 baseline:</b> Dennis, Joel, and Kyle are fully paid into the 2026 season and the fund is $0.00 until the first sale. Technical workbook details live in Manager/audit areas.'):''}<p class="eyebrow" style="margin-top:26px">Member Fund Status</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(0)}</div><div class="sub">settled for 2026</div><div class="line"><span>Roll-forward applied</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div><p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${recentTransactionsBlock(5)}${dennisView()?`<details class="card"><summary><b>Data status for Dennis</b></summary><p class="sub">This area is intentionally tucked away from the member headline view.</p>${workbookStatus()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length||0)+' rows.'):''}</details>`:''}`); bindRefresh();}
+    const shareHelp = !dennisView() ? `<div class="card share-help"><h3>How to read this</h3><div class="help-row"><b>Fund Balance</b><span>money currently available</span></div><div class="help-row"><b>Member Status</b><span>whether anyone owes money</span></div><div class="help-row"><b>Sales</b><span>ticket or parking money added to the fund</span></div><div class="sub">Questions or something looks off? Text Dennis.</div></div>` : '';
+    layout('Scoreboard','Game Day Dashboard','A member-first view of the 2026 ticket fund: fund status, member status, current sales, and recent activity.',`${snapshotOrLive}<div class="grid">${card('2026 Fund Balance',money(0),'fund is depleted until the first sale')}${card('Member Status',memberStatus,'Dennis, Joel, and Kyle are settled')}${card('Ticket Sales This Season',money(0),'no 2026 sale proceeds logged yet')}${card('Parking Sales This Season',money(0),'no 2026 parking sale proceeds logged yet')}${card('Next Expected Activity','First Sale','ticket or parking sale adds fund balance')}${card('Last Fund Activity',lastFundActivity.value,lastFundActivity.sub)}</div>${dennisView()?notice('<b>2026 baseline:</b> Dennis, Joel, and Kyle are fully paid into the 2026 season and the fund is $0.00 until the first sale. Technical workbook details live in Manager/audit areas.'):''}${shareHelp}<p class="eyebrow" style="margin-top:26px">Member Fund Status</p><div class="grid">${f.map(x=>`<article class="card"><h3>${x.name}</h3><div class="value">${money(0)}</div><div class="sub">settled for 2026</div><div class="line"><span>Roll-forward applied</span><b>${money(x.rollForward)}</b></div><div class="line"><span>2026 cash paid</span><b>${money(x.cashPaid)}</b></div></article>`).join('')}</div><p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${recentTransactionsBlock(5)}${dennisView()?`<details class="card"><summary><b>Data status for Dennis</b></summary><p class="sub">This area is intentionally tucked away from the member headline view.</p>${workbookStatus()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length||0)+' rows.'):''}</details>`:''}`); bindRefresh();}
 
   function renderMoney(){
     const m=DATA.metrics;
