@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch30c-penny-tolerance';
+  const VERSION = 'v2026.06.25-patch31-scroll-top';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -859,12 +859,13 @@
 
 
   const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
-  function show(id){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)();}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
+  function scrollToPageTop(){try{window.scrollTo({top:0,left:0,behavior:'auto'}); document.documentElement.scrollTop=0; document.body.scrollTop=0;}catch(e){}}
+  function show(id, scrollTop){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)(); if(scrollTop) requestAnimationFrame(scrollToPageTop);}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
   async function connectOneDrive(){
     if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
     if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded');
     const res=await window.HTCC_GRAPH.connect(); connection.connected=true; connection.profile=res.profile||null; const email=userEmail(connection.profile); connection.isManager=!!email&&email===managerEmail(); await refreshLedger(); setMode(); show(current); alert('Connected as '+(email||'Microsoft account')+(connection.isManager?' · Manager writeback enabled':' · Read-only account')+'. Workbook rows loaded: '+(liveLedger.transactions.length||0));
   }
-  function init(){try{setMode(); renderNav(); const n=$('#bottomNav'); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
+  function init(){try{setMode(); renderNav(); const n=$('#bottomNav'); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen,true);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
