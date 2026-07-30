@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.06.25-patch34-shared-opportunity-fix';
+  const VERSION = 'v2026.06.25-patch35-game-summaries';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -45,7 +45,7 @@
     test:{label:'TEST writeback validation',assetType:'Game Ticket',category:'Test',transactionType:'Graph Writeback Test',allocationType:'Member Specific',owner:'Dennis',sign:'positive',description:'TEST - Graph writeback validation',hint:'Use only for safe writeback testing, then delete the test row.'}
   };
 
-  const allScreens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['settle','🤝','Settle'],['manager','✍️','Manager']];
+  const allScreens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['games','📅','Games'],['settle','🤝','Settle'],['manager','✍️','Manager']];
   const visibleScreens=()=>allScreens.filter(([id])=>id!=='manager'||dennisView());
   function renderNav(){const n=$('#bottomNav'); if(!n) return; n.innerHTML=visibleScreens().map(([id,icon,label])=>`<button class="navbtn" data-screen="${id}"><span>${icon}</span>${label}</button>`).join('');}
   let current='score';
@@ -702,6 +702,82 @@
   }
 
 
+
+  function gameKeyForTxn(t){
+    const g = String(t.Game || '').trim();
+    if(g) return g;
+    const gid = String(t.GameID || '').trim();
+    if(gid) return gid;
+    const desc = String(t.Description || t.TransactionType || '').trim();
+    return desc || 'Season / General';
+  }
+  function gameGroupRows(rows=scopeRows()){
+    const map=new Map();
+    rows.forEach(t=>{
+      const key=gameKeyForTxn(t);
+      if(!map.has(key)) map.set(key,[]);
+      map.get(key).push(t);
+    });
+    return [...map.entries()].map(([key,groupRows])=>{
+      const dates=groupRows.map(t=>String(t.TxnDate||'')).filter(Boolean).sort();
+      const latest=dates.length?dates[dates.length-1]:'';
+      const earliest=dates.length?dates[0]:'';
+      return {key,rows:groupRows,latest,earliest};
+    }).sort((a,b)=>b.latest.localeCompare(a.latest)||a.key.localeCompare(b.key));
+  }
+  function gameSummaryTotals(rows){
+    const totals={ticketSales:0,parkingSales:0,ticketCosts:0,parkingCosts:0,otherCosts:0,memberFunding:0,sharedOpportunity:0,sethDirectPayout:0,fundNet:0,combinedNet:0,count:rows.length};
+    rows.forEach(t=>{
+      const bucket=moneyBucket(t);
+      const amt=signedMoneyAmount(t,bucket);
+      if(bucket==='Ticket Sales / Resales') totals.ticketSales=round2(totals.ticketSales+amt);
+      else if(bucket==='Parking Sales / Resales') totals.parkingSales=round2(totals.parkingSales+amt);
+      else if(bucket==='Ticket Costs') totals.ticketCosts=round2(totals.ticketCosts+amt);
+      else if(bucket==='Parking Costs') totals.parkingCosts=round2(totals.parkingCosts+amt);
+      else if(bucket==='Other Costs') totals.otherCosts=round2(totals.otherCosts+amt);
+      else if(bucket==='Member / Fund Money' || bucket==='Other Money In') totals.memberFunding=round2(totals.memberFunding+amt);
+      else if(bucket==='Shared Opportunity') totals.sharedOpportunity=round2(totals.sharedOpportunity+amt);
+      totals.sethDirectPayout=round2(totals.sethDirectPayout + sethDirectPayoutAmount(t));
+    });
+    totals.fundNet=round2(totals.ticketSales+totals.parkingSales+totals.ticketCosts+totals.parkingCosts+totals.otherCosts+totals.memberFunding);
+    totals.combinedNet=round2(totals.fundNet+totals.sharedOpportunity);
+    return totals;
+  }
+  function gameBucketedRows(rows){
+    const out=[];
+    rows.forEach(t=>{
+      const bucket=moneyBucket(t);
+      const amount=signedMoneyAmount(t,bucket);
+      if(bucket!=='No Money Impact') out.push({...t,_bucket:bucket,_amount:amount});
+      const seth=sethDirectPayoutAmount(t);
+      if(seth>0) out.push({...t,_bucket:'Seth Direct Payout',_amount:seth,Description:(t.Description||t.Game||'')+' — paid directly to Seth, not deposited to fund'});
+    });
+    return out.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a)));
+  }
+  function gameSummaryCard(game, open=false){
+    const rows=gameBucketedRows(game.rows);
+    const totals=gameSummaryTotals(game.rows);
+    const sharedRows=rows.filter(t=>t._bucket==='Shared Opportunity');
+    const seasonRows=rows.filter(t=>t._bucket!=='Shared Opportunity');
+    const detailRows=rows.map(t=>[
+      t.TxnDate||'',
+      t._bucket,
+      t.Category||t.TransactionType||'',
+      t.Description||t.Game||'',
+      money(t._amount)
+    ]);
+    const dateLine=[game.earliest,game.latest && game.latest!==game.earliest ? `to ${game.latest}` : ''].filter(Boolean).join(' ');
+    return `<details class="card game-card" ${open?'open':''}><summary><span>${escapeHtml(game.key)}</span><b>${money(totals.combinedNet)}</b></summary><div class="sub">${game.rows.length} rows${dateLine ? ` · ${dateLine}` : ''}</div><div class="grid two" style="margin-top:12px">${card('Season Fund Net',money(totals.fundNet),'season-ticket / parking / general fund impact',totals.fundNet<0?'neg':'')}${card('Shared Opportunity Net',money(totals.sharedOpportunity),'Michigan / bowl / shared ticket pool',totals.sharedOpportunity<0?'neg':'')}${card('Ticket Sales / Resales',money(totals.ticketSales),'ticket resale proceeds',totals.ticketSales<0?'neg':'')}${card('Ticket Costs',money(totals.ticketCosts),'ticket purchases and fees',totals.ticketCosts<0?'neg':'')}${card('Parking Sales / Resales',money(totals.parkingSales),'parking resale proceeds',totals.parkingSales<0?'neg':'')}${card('Parking Costs',money(totals.parkingCosts),'parking purchases and costs',totals.parkingCosts<0?'neg':'')}${card('Other Costs',money(totals.otherCosts),'travel / misc costs',totals.otherCosts<0?'neg':'')}${card('Seth Direct Payout',money(totals.sethDirectPayout),'paid directly to Seth, not deposited to fund',totals.sethDirectPayout<0?'neg':'')}</div>${sharedRows.length?`<div class="notice"><b>Shared Opportunity rows:</b> ${sharedRows.length} · ${money(totals.sharedOpportunity)}</div>`:''}${seasonRows.length?`<div class="notice"><b>Season fund rows:</b> ${seasonRows.length} · ${money(totals.fundNet)}</div>`:''}${table(['Date','Bucket','Category','Description','Amount'],detailRows)}</details>`;
+  }
+  function renderGames(){
+    const rows=scopeRows();
+    const groups=gameGroupRows(rows);
+    const totals=gameSummaryTotals(rows);
+    layout('Games','Game-by-Game Summaries','See the money story for each game in the selected season, with season fund activity separated from shared opportunity buys.',`${seasonSelectorBlock()}<div class="grid two">${card('Games in scope',String(groups.length),'game/event groups in the selected season')}${card('Season Fund Net',money(totals.fundNet),'all season-fund related rows')}${card('Shared Opportunity Net',money(totals.sharedOpportunity),'shared buys/resales like Michigan')}${card('Combined Game Net',money(totals.combinedNet),'season fund + shared opportunity')}${card('Ticket Sales / Resales',money(totals.ticketSales),'ticket sale/resale proceeds')}${card('Ticket Costs',money(totals.ticketCosts),'ticket purchases and fees')}${card('Parking Sales / Resales',money(totals.parkingSales),'parking sale/resale proceeds')}${card('Parking Costs',money(totals.parkingCosts),'parking purchases and costs')}</div>${groups.length ? `<p class="eyebrow" style="margin-top:26px">Game summaries</p>${groups.map((g,i)=>gameSummaryCard(g,i===0)).join('')}` : notice('No game-specific rows found in the current season scope.')}${dennisView()?`<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Game summaries keep the fund math and shared-opportunity math separate. Use this audit section for raw row checking.</p>${auditTxnTable(rows,20)}</details>`:''}`);
+    bindSeasonSelector();
+    bindRefresh();
+  }
+
   function renderScore(){
     const f=DATA.activeFunds.filter(x=>['Dennis','Joel','Kyle'].includes(x.name));
     const lastFundActivity=lastFundActivityDisplay();
@@ -912,7 +988,7 @@
   }
 
 
-  const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
+  const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,games:renderGames,settle:renderSettle,manager:renderManager};
   function show(id){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)(); if(changingPage) window.scrollTo({top:0,left:0,behavior:'auto'});}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
   async function connectOneDrive(){
     if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
