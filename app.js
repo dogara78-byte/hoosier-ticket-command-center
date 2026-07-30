@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.07.30-v2-manager-fund-type';
+  const VERSION = 'v2026.06.25-patch34-shared-opportunity-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -44,24 +44,6 @@
     reversal:{label:'Reversal / correction',assetType:'Adjustment',category:'Reversal',transactionType:'Reversal',allocationType:'Member Specific',owner:'Dennis',sign:'opposite',description:'Reversal of prior transaction',hint:'Preferred way to undo a row while preserving audit trail.'},
     test:{label:'TEST writeback validation',assetType:'Game Ticket',category:'Test',transactionType:'Graph Writeback Test',allocationType:'Member Specific',owner:'Dennis',sign:'positive',description:'TEST - Graph writeback validation',hint:'Use only for safe writeback testing, then delete the test row.'}
   };
-
-  const fundTypeDefaults = {
-    'Season Fund': { preset: 'seasonPayment', allocationType: 'Seat Split', owner: 'All Active Seats' },
-    'Shared Opportunity': { preset: 'ticketPurchase', allocationType: 'Member Split', owner: 'Dennis Joel Kyle' },
-    'Parking Only': { preset: 'parkingPurchase', allocationType: 'Member Split', owner: 'All Members' },
-    'Adjustment': { preset: 'adjustment', allocationType: 'Member Specific', owner: 'Dennis' }
-  };
-  function selectedFundType(){ return $('#txFundType') ? $('#txFundType').value : 'Season Fund'; }
-  function applyFundType(){
-    const ft = selectedFundType();
-    const d = fundTypeDefaults[ft] || fundTypeDefaults['Season Fund'];
-    const presetSel = $('#txPreset');
-    if(presetSel && d.preset && presetSel.value !== d.preset) presetSel.value = d.preset;
-    if($('#txAllocation')) $('#txAllocation').value = d.allocationType;
-    if($('#txOwner')) $('#txOwner').value = d.owner;
-    const hint = $('#presetHint');
-    if(hint) hint.textContent = (selectedPreset().hint || '') + ' · Fund Type: ' + ft;
-  }
 
   const allScreens=[['score','🏟️','Score'],['money','💰','Money'],['seats','🎟️','Seats'],['parking','🅿️','Parking'],['history','🏆','History'],['settle','🤝','Settle'],['manager','✍️','Manager']];
   const visibleScreens=()=>allScreens.filter(([id])=>id!=='manager'||dennisView());
@@ -283,6 +265,37 @@
   function seasonRows(season=activeSeason()){
     return txRows().filter(t=>Number(t.Season||t.SourceYear||0)===Number(season));
   }
+  function isSharedOpportunityRow(t){
+    const alloc=String(t.AllocationType||'').toLowerCase();
+    return alloc.includes('dennis joel kyle split') || alloc.includes('shared opportunity');
+  }
+  function fundScopeRows(season=selectedSeasonValue()){
+    const rows=season==='all'?txRows():seasonRows(season);
+    return rows.filter(t=>!isSharedOpportunityRow(t));
+  }
+  function sharedOpportunityRows(season=selectedSeasonValue()){
+    const rows=season==='all'?txRows():seasonRows(season);
+    return rows.filter(isSharedOpportunityRow);
+  }
+  function sharedActivityRows(limit=25){
+    return [...sharedOpportunityRows()].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);
+  }
+  function sharedOpportunityPersonAmount(rows,name){
+    return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name),0));
+  }
+  function sharedOpportunityBalances(){
+    const rows=sharedOpportunityRows();
+    return memberKeysForCurrentScope().map(name=>({key:name,name:memberLabels[name],amount:settledAmount(sharedOpportunityPersonAmount(rows,name)),recent:rows.filter(t=>Math.abs(rawPersonCredits(t,name))>0.005).length}));
+  }
+  function sharedOpportunitySettlementRows(){
+    const balances=sharedOpportunityBalances();
+    const rows=[];
+    balances.forEach(b=>{
+      if(b.amount>0.005) rows.push(['Shared Opportunity',b.name,money(b.amount),'Shared opportunity fund owes this member if the opportunity closes today']);
+      if(b.amount<-0.005) rows.push([b.name,'Shared Opportunity',money(-b.amount),'Member owes the shared opportunity pool if the opportunity closes today']);
+    });
+    return rows;
+  }
   function availableSeasons(){
     const years=txRows().map(t=>Number(t.Season||t.SourceYear||0)).filter(n=>Number.isFinite(n)&&n>2000);
     const fallback=DATA.history.map(h=>Number(h.season)).filter(Boolean);
@@ -393,7 +406,7 @@
     return rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length;
   }
   function memberBalances(){
-    const rows=scopeRows();
+    const rows=fundScopeRows();
     return memberKeysForCurrentScope().map(name=>({key:name,name:memberLabels[name],amount:settledAmount(personAmount(rows,name)),recent:personHitCount(rows,name)}));
   }
   function seatExpenseShare(t,seat){
@@ -409,14 +422,14 @@
     return round2(rows.reduce((bal,t)=>bal + Number(t[seat]||0) + seatExpenseShare(t,seat),0));
   }
   function seatBalances(){
-    const rows=scopeRows();
+    const rows=fundScopeRows();
     return seatKeysForCurrentScope().map(name=>({key:name,name:seatLabels[name],owner:seatOwner[name],amount:settledAmount(seatNet(rows,name)),recent:rows.filter(t=>Math.abs(Number(t[name]||0))+Math.abs(seatExpenseShare(t,name))>0.005).length}));
   }
   function parkingNetForMember(rows,name){
     return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name) + expenseShareByPerson(t,name),0));
   }
   function parkingTotals(){
-    const rows=scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
+    const rows=fundScopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking'));
     return memberKeysForCurrentScope().map(name=>({name,amount:settledAmount(parkingNetForMember(rows,name)),count:rows.filter(t=>Math.abs(rawPersonCredits(t,name))+Math.abs(expenseShareByPerson(t,name))>0.005).length}));
   }
   function memberRecentRows(member,limit=6){
@@ -442,6 +455,7 @@
   function activityKind(t){
     const bucket = moneyBucket(t);
     if(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') return 'Sale / Resale';
+    if(bucket==='Shared Opportunity') return 'Shared Opportunity';
     if(bucket==='Ticket Costs' || bucket==='Parking Costs' || bucket==='Other Costs') return 'Cost / Purchase';
     if(bucket==='Member / Fund Money' || bucket==='Other Money In') return 'Adjustment';
     const text = [t.AssetType,t.Category,t.TransactionType,t.Description,t.Game].join(' ').toLowerCase();
@@ -453,19 +467,20 @@
     return signedMoneyAmount(t,bucket);
   }
   function activityRows(kind='All',limit=25){
-    let rows = scopeRows();
+    let rows = fundScopeRows();
     if(kind && kind !== 'All') rows = rows.filter(t=>activityKind(t)===kind);
     return [...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);
   }
-  function activitySummary(rows=scopeRows()){
-    const out={sales:0,parking:0,costs:0,adjustments:0,count:rows.length};
+  function activitySummary(rows=fundScopeRows()){
+    const out={sales:0,parking:0,sharedOpportunity:0,costs:0,adjustments:0,count:rows.length};
     rows.forEach(t=>{
       const amt=activityDisplayAmount(t);
       const bucket=moneyBucket(t);
       if(bucket==='Ticket Sales / Resales' || bucket==='Parking Sales / Resales') out.sales=round2(out.sales+amt);
+      else if(bucket==='Shared Opportunity') out.sharedOpportunity=round2(out.sharedOpportunity+amt);
       else if(bucket==='Parking Costs') out.parking=round2(out.parking+amt);
       else if(bucket==='Ticket Costs' || bucket==='Other Costs') out.costs=round2(out.costs+amt);
-      else if(bucket==='Member / Fund Money' || bucket==='Other Money In') out.adjustments=round2(out.adjustments+amt);
+      else if(bucket==='Member / Fund Money' || bucket==='Other Money In' || bucket==='Seth Direct Payout') out.adjustments=round2(out.adjustments+amt);
     });
     return out;
   }
@@ -580,6 +595,7 @@
   function signedMoneyAmount(t,bucket){
     const b=bucket || moneyBucket(t);
     if(b==='Ticket Sales / Resales' || b==='Parking Sales / Resales') return round2(Math.max(0,fundProceedsAmount(t)));
+    if(b==='Shared Opportunity') return round2(rowTotal(t));
     if(b==='Ticket Costs' || b==='Parking Costs' || b==='Other Costs') return round2(-Math.abs(rowTotal(t)));
     if(b==='Member / Fund Money' || b==='Other Money In' || b==='Seth Direct Payout') return round2(Math.abs(rowTotal(t)));
     return round2(rowTotal(t));
@@ -602,7 +618,8 @@
     return round2(seasonRows(next).filter(isMemberFundingRow).reduce((a,t)=>a+rowTotal(t),0));
   }
   function scopedMoneySummary(){
-    const rows=scopeRows();
+    const rows=fundScopeRows();
+    const sharedRows=sharedOpportunityRows();
     const ticketSales=rows.filter(isTrueTicketSaleRow).reduce((a,t)=>a+signedMoneyAmount(t,'Ticket Sales / Resales'),0);
     const parkingSales=rows.filter(isParkingMoneyRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Sales / Resales'),0);
     const sethDirectPayout=rows.reduce((a,t)=>a+sethDirectPayoutAmount(t),0);
@@ -611,6 +628,7 @@
     const otherCosts=rows.filter(isOtherCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Other Costs'),0);
     const memberFunding=rows.filter(isMemberFundingRow).reduce((a,t)=>a+signedMoneyAmount(t,'Member / Fund Money'),0);
     const otherPositive=rows.filter(t=>moneyBucket(t)==='Other Money In').reduce((a,t)=>a+signedMoneyAmount(t,'Other Money In'),0);
+    const sharedOpportunity=sharedRows.reduce((a,t)=>a+signedMoneyAmount(t,'Shared Opportunity'),0);
     const positive=ticketSales+parkingSales+memberFunding+otherPositive;
     const negative=ticketCosts+parkingCosts+otherCosts;
     const selected=selectedSeasonValue();
@@ -619,11 +637,13 @@
       rows,total:round2(positive+negative),positive:round2(positive),negative:round2(negative),
       tickets:round2(ticketSales),parking:round2(parkingSales),ticketCosts:round2(ticketCosts),
       parkingCosts:round2(parkingCosts),otherCosts:round2(otherCosts),memberFunding:round2(memberFunding),
-      sethDirectPayout:round2(sethDirectPayout),otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext)
+      sethDirectPayout:round2(sethDirectPayout),otherPositive:round2(otherPositive),rollForwardNext:round2(rollForwardNext),
+      sharedOpportunity:round2(sharedOpportunity)
     };
   }
 
   function moneyBucket(t){
+    if(isSharedOpportunityRow(t)) return 'Shared Opportunity';
     if(isMemberFundingRow(t)) return 'Member / Fund Money';
     if(isTrueTicketSaleRow(t)) return 'Ticket Sales / Resales';
     if(isParkingMoneyRow(t)) return 'Parking Sales / Resales';
@@ -636,7 +656,7 @@
     return 'No Money Impact';
   }
   function bucketOrder(name){
-    const order=['Ticket Sales / Resales','Parking Sales / Resales','Seth Direct Payout','Ticket Costs','Parking Costs','Other Costs','Member / Fund Money','Other Money In','No Money Impact'];
+    const order=['Ticket Sales / Resales','Parking Sales / Resales','Shared Opportunity','Seth Direct Payout','Ticket Costs','Parking Costs','Other Costs','Member / Fund Money','Other Money In','No Money Impact'];
     const ix=order.indexOf(name);
     return ix<0?99:ix;
   }
@@ -693,27 +713,35 @@
   function renderMoney(){
     const m=DATA.metrics;
     const live=ledgerAvailable();
-    const sm=live?scopedMoneySummary():{total:0,positive:0,negative:0,tickets:0,parking:0};
+    const sm=live?scopedMoneySummary():{total:0,positive:0,negative:0,tickets:0,parking:0,sharedOpportunity:0};
+    const sharedRows=live?sharedOpportunityRows():[];
+    const sharedNet=live?round2(sharedRows.reduce((a,t)=>a+signedMoneyAmount(t,'Shared Opportunity'),0)):0;
     const scope=selectedSeasonLabel();
     const is2026=live && String(selectedSeasonValue())==='2026';
     const rollCard = (!is2026 && live && sm.rollForwardNext>0)
       ? card('Rolled Forward to '+(Number(selectedSeasonValue())+1),money(sm.rollForwardNext),'actual amount carried into next season')
       : card('Fund Result',money(sm.total),'money collected minus money spent for '+scope, sm.total<0?'neg':'');
+    const sharedCard = live && sharedRows.length
+      ? card('Shared Opportunity',money(sharedNet),'shared game-ticket purchase / resale pool',sharedNet<0?'neg':'')
+      : '';
     const memberFriendlyCards = is2026
-      ? `${card('Fund Balance',money(0),'cash available right now')}${card('Member Status','Everyone paid up','no payments needed')}${card('Next Expected Activity','First Sale','ticket or parking sale adds money to the fund')}`
-      : `${rollCard}${card('Total Costs',money(sm.negative),'ticket costs + parking costs + other costs', sm.negative<0?'neg':'')}${card('Member / Fund Money',money(sm.memberFunding),'roll-forward, top-offs, credits, and member funding')}`;
+      ? `${card('Fund Balance',money(0),'cash available right now')}${card('Member Status','Everyone paid up','no payments needed')}${sharedCard}${card('Next Expected Activity','First Sale','ticket or parking sale adds money to the season fund')}`
+      : `${rollCard}${card('Total Costs',money(sm.negative),'ticket costs + parking costs + other costs', sm.negative<0?'neg':'')}${card('Member / Fund Money',money(sm.memberFunding),'roll-forward, top-offs, credits, and member funding')}${sharedCard}`;
     const plainIntro = is2026
-      ? '<b>2026 status:</b> everyone is paid up, no one owes money right now, and the fund is $0.00 until the first ticket or parking sale comes in.'
+      ? '<b>2026 status:</b> everyone is paid up, no one owes money right now, and the season fund is $0.00 until the first ticket or parking sale comes in. Shared opportunity purchases are tracked separately.'
       : '<b>Simple read:</b> sales now count only real ticket/parking sale or resale proceeds. Member payments, top-offs, opening balances, and roll-forwards are shown separately so the fund result is not confused with gross ticket sales.';
     const salesCards = `${card('Ticket Sales / Resales',live?money(sm.tickets):money(m.ticketActivity),'actual ticket sale/resale proceeds deposited to the fund')}${card('Parking Sales / Resales',live?money(sm.parking):money(m.lifetimeParking),'parking sale/resale money deposited to the fund')}${card('Seth Direct Payout',live?money(sm.sethDirectPayout||0):money(0),'paid directly to Seth, not deposited to the fund')}${card('Ticket Costs',live?money(sm.ticketCosts):money(0),'season tickets, postseason tickets, upgrades, and ticket fees', (live&&sm.ticketCosts<0)?'neg':'')}${card('Parking Costs',live?money(sm.parkingCosts):money(0),'parking pass purchases and parking costs only', (live&&sm.parkingCosts<0)?'neg':'')}${card('Other Costs',live?money(sm.otherCosts):money(0),'travel, non-ticket fees, and miscellaneous expenses', (live&&sm.otherCosts<0)?'neg':'')}${card('Member / Fund Money',live?money(sm.memberFunding):money(0),'opening balance, roll-forward, credits, top-offs')}`;
-    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above use stricter classifications. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Raw Ledger Total',money(sm.total),'all positive rows plus all negative rows for '+scope, sm.total<0?'neg':'')}${card('Raw Positive Rows',money(sm.positive),'all positive TotalAmount rows')}${card('Raw Negative Rows',money(sm.negative),'all negative TotalAmount rows', sm.negative<0?'neg':'')}${card('True Ticket Sales',money(sm.tickets),'ticket sale/resale rows only')}${card('Ticket Costs',money(sm.ticketCosts),'ticket purchase/cost rows', sm.ticketCosts<0?'neg':'')}${card('Parking Sales',money(sm.parking),'parking sale/resale money deposited to fund')}${card('Seth Direct Payout',money(sm.sethDirectPayout||0),'paid directly to Seth and excluded from fund proceeds')}${card('Parking Costs',money(sm.parkingCosts),'parking pass costs only', sm.parkingCosts<0?'neg':'')}${card('Other Costs',money(sm.otherCosts),'travel/fees/miscellaneous costs', sm.otherCosts<0?'neg':'')}${card('Other Positive Activity',money(sm.otherPositive),'positive rows not counted as sales, Seth payout, or member funding')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
-    layout('Money','Money','Plain-English fund status for members: what is in the fund, who is paid up, what has been sold, and what has been spent.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Fund Status</p><div class="grid two">${memberFriendlyCards}</div>${notice(plainIntro)}<p class="eyebrow" style="margin-top:26px">Sales and Cost Breakdown</p><div class="grid two">${salesCards}</div><p class="eyebrow" style="margin-top:26px">Money Breakdown for ${scope}</p>${moneyBreakdownTable()}${dennisAudit}`);
+    const sharedSection = live && sharedRows.length
+      ? `<p class="eyebrow" style="margin-top:26px">Shared Opportunity</p><div class="grid two">${card('Shared Opportunity',money(sharedNet),'Michigan / bowl / shared-ticket pool',sharedNet<0?'neg':'')}${card('Shared Opportunity Rows',String(sharedRows.length),'rows in the side pool')}</div>${memberActivityTable(sharedRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),12)}`
+      : '';
+    const dennisAudit = (live && dennisView()) ? `<details class="card"><summary><b>Dennis audit details</b></summary><p class="sub">Plain-English cards above use stricter classifications. This audit section keeps the raw ledger math available for Dennis.</p><div class="grid two">${card('Raw Ledger Total',money(sm.total),'all positive rows plus all negative rows for '+scope, sm.total<0?'neg':'')}${card('Raw Positive Rows',money(sm.positive),'all positive TotalAmount rows')}${card('Raw Negative Rows',money(sm.negative),'all negative TotalAmount rows', sm.negative<0?'neg':'')}${card('True Ticket Sales',money(sm.tickets),'ticket sale/resale rows only')}${card('Ticket Costs',money(sm.ticketCosts),'ticket purchase/cost rows', sm.ticketCosts<0?'neg':'')}${card('Parking Sales',money(sm.parking),'parking sale/resale money deposited to fund')}${card('Seth Direct Payout',money(sm.sethDirectPayout||0),'paid directly to Seth and excluded from fund proceeds')}${card('Parking Costs',money(sm.parkingCosts),'parking pass costs only', sm.parkingCosts<0?'neg':'')}${card('Other Costs',money(sm.otherCosts),'travel/fees/miscellaneous costs', sm.otherCosts<0?'neg':'')}${card('Other Positive Activity',money(sm.otherPositive),'positive rows not counted as sales, Seth payout, or member funding')}${card('Shared Opportunity',money(sharedNet),'shared-ticket pool kept separate from season fund',sharedNet<0?'neg':'')}</div><p class="eyebrow" style="margin-top:18px">Money Audit Rows</p>${auditTxnTable(scopeRows(),12)}</details>` : '';
+    layout('Money','Money','Plain-English fund status for members: what is in the fund, who is paid up, what has been sold, and what has been spent.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Fund Status</p><div class="grid two">${memberFriendlyCards}</div>${notice(plainIntro)}<p class="eyebrow" style="margin-top:26px">Sales and Cost Breakdown</p><div class="grid two">${salesCards}</div>${sharedSection}<p class="eyebrow" style="margin-top:26px">Money Breakdown for ${scope}</p>${moneyBreakdownTable()}${dennisAudit}`);
     bindSeasonSelector(); bindRefresh();
   }
   function renderSeats(){
     const live=ledgerAvailable();
     const seatRows=live?seatBalances():DATA.seatAccounts.map(s=>({name:s.seat,owner:s.owner,amount:s.balance,recent:0}));
-    const scoped=live?scopeRows():[];
+    const scoped=live?fundScopeRows():[];
     const ticketRows=live?scoped.filter(t=>String(t.AssetType||'').toLowerCase().includes('ticket')):[];
     const ticketSales=round2(ticketRows.filter(t=>rowTotal(t)>0 && activityKind(t)==='Sale / Resale').reduce((a,t)=>a+rowTotal(t),0));
     const ticketCosts=round2(ticketRows.filter(t=>rowTotal(t)<0 || activityKind(t)==='Cost / Purchase').reduce((a,t)=>a+rowTotal(t),0));
@@ -730,12 +758,14 @@
     const live=ledgerAvailable();
     const pRows=live?parkingTotals():DATA.parking.map(p=>({name:p.year,amount:p.amount,count:0}));
     const total=live?round2(pRows.reduce((a,p)=>a+p.amount,0)):DATA.parking.reduce((a,p)=>a+p.amount,0);
-    const parkingRows=live?scopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking')):[];
+    const parkingRows=live?fundScopeRows().filter(t=>String(t.AssetType||'').toLowerCase().includes('parking')):[];
     const sales=round2(parkingRows.filter(isParkingMoneyRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Sales / Resales'),0));
     const costs=round2(parkingRows.filter(isParkingCostRow).reduce((a,t)=>a+signedMoneyAmount(t,'Parking Costs'),0));
     const openMembers=pRows.filter(p=>Math.abs(p.amount)>0.005);
-    const headline=live && openMembers.length===0
-      ? `${card('Parking Status','Settled','no open parking balance')}${card('Parking Fund Impact',money(total),'net parking activity in this scope')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`
+    const summary=live?{total:sales+costs,count:openMembers.length}:null;
+    const settled = live && openMembers.length===0;
+    const headline = settled
+      ? `${card('Parking Status','Settled','no open 2026 parking balance')}${card('Open Parking Balance',money(0),'nothing owed or due by parking')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`
       : `${card('Open Parking Members',String(openMembers.length),'members with non-zero parking net')}${card('Parking Fund Impact',money(total),'net parking activity in this scope',total<0?'neg':'')}${card('Parking Sales',money(sales),'parking money received')}${card('Parking Costs',money(costs),'parking purchases/costs',costs<0?'neg':'')}`;
     layout('Parking','Parking Money Tracker','Parking is tracked by member. This page answers who has parking activity, what has been sold, and whether parking money affects the fund.',`${seasonSelectorBlock()}<p class="eyebrow" style="margin-top:26px">Parking Summary</p><div class="grid two">${headline}</div>${dennisView()?notice((live?scopeNote('Parking tracker')+' ':'')+'<b>Parking rule:</b> parking is member-level. For 2026 there are four fund shares for cost allocation: Dennis, Joel, Kyle, and Dennis x 2; Dennis x 2 is rolled into Dennis on member-facing totals. Parking should not affect seat columns.'):''}<p class="eyebrow" style="margin-top:26px">Member Parking Balances</p><div class="grid">${pRows.map(p=>card(p.name,money(p.amount),p.amount===0?'settled / no open balance':`${p.count} parking ledger rows`,p.amount<0?'neg':'')).join('')}</div><p class="eyebrow" style="margin-top:26px">Parking Activity Rows</p>${live?memberActivityTable(parkingRows.sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20):refreshBlock()}${dennisView()?`<details class="card"><summary><b>Manager audit: parking totals</b></summary>${live?table(['Member','Parking Total','Rows Hit'],pRows.map(p=>[p.name,money(p.amount),p.count])):''}</details>`:''}`);
     bindSeasonSelector(); bindRefresh();
@@ -747,25 +777,31 @@
       bindRefresh();
       return;
     }
-    const rows=scopeRows();
+    const rows=fundScopeRows();
+    const sharedRows=sharedActivityRows(20);
     const summary=activitySummary(rows);
+    const sharedSummary=activitySummary(sharedRows);
     const all=activityRows('All',40);
     const sales=activityRows('Sale / Resale',20);
     const parking=activityRows('Parking',20);
     const costs=activityRows('Cost / Purchase',20);
     const adjustments=activityRows('Adjustment',20);
-    layout('History','Fund Activity Timeline','A member-friendly view of what happened: sales, costs, parking, adjustments, and season history.',`${seasonSelectorBlock()}<div class="grid">${card('Sales / Resales',money(summary.sales),'ticket + parking sale/resale proceeds')}${card('Parking Activity',money(summary.parking),'parking sales, costs, and usage',summary.parking<0?'neg':'')}${card('Costs / Purchases',money(summary.costs),'season, postseason, fees, travel',summary.costs<0?'neg':'')}${card('Adjustments',money(summary.adjustments),'top-offs, credits, reimbursements, reversals',summary.adjustments<0?'neg':'')}${card('Rows in Scope',String(summary.count),'transactions feeding this view')}${card('Current Scope',selectedSeasonLabel(),'use selector to switch seasons')}</div>${dennisView()?notice(scopeNote('History timeline')+' This page hides transaction IDs in the main activity feed and focuses on category, amount, event, and date.'):''}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${memberActivityTable(all,25)}<p class="eyebrow" style="margin-top:26px">Ticket Sales / Resales</p>${memberActivityTable(sales,15)}<p class="eyebrow" style="margin-top:26px">Parking Activity</p>${memberActivityTable(parking,15)}<p class="eyebrow" style="margin-top:26px">Costs, Purchases, and Adjustments</p>${memberActivityTable([...costs,...adjustments].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20)}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
+    layout('History','Fund Activity Timeline','A member-friendly view of what happened: sales, costs, parking, adjustments, and season history.',`${seasonSelectorBlock()}<div class="grid">${card('Sales / Resales',money(summary.sales),'ticket + parking sale/resale proceeds')}${card('Parking Activity',money(summary.parking),'parking sales, costs, and usage',summary.parking<0?'neg':'')}${card('Shared Opportunity',money(sharedSummary.sharedOpportunity),'shared-ticket purchase / resale pool',sharedSummary.sharedOpportunity<0?'neg':'')}${card('Costs / Purchases',money(summary.costs),'season, postseason, fees, travel',summary.costs<0?'neg':'')}${card('Adjustments',money(summary.adjustments),'top-offs, credits, reimbursements, reversals',summary.adjustments<0?'neg':'')}${card('Rows in Scope',String(summary.count),'transactions feeding this view')}${card('Current Scope',selectedSeasonLabel(),'use selector to switch seasons')}</div>${dennisView()?notice(scopeNote('History timeline')+' This page hides transaction IDs in the main activity feed and focuses on category, amount, event, and date.'):''}<p class="eyebrow" style="margin-top:26px">Recent Fund Activity</p>${memberActivityTable(all,25)}<p class="eyebrow" style="margin-top:26px">Ticket Sales / Resales</p>${memberActivityTable(sales,15)}<p class="eyebrow" style="margin-top:26px">Parking Activity</p>${memberActivityTable(parking,15)}<p class="eyebrow" style="margin-top:26px">Shared Opportunity</p>${memberActivityTable(sharedRows,15)}<p class="eyebrow" style="margin-top:26px">Costs, Purchases, and Adjustments</p>${memberActivityTable([...costs,...adjustments].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))),20)}<p class="eyebrow" style="margin-top:26px">IU Season History</p>${table(['Season','Record','Games','Note'],DATA.history.map(h=>[h.season,h.record,h.games,h.note]))}<p class="eyebrow" style="margin-top:26px">2025 Championship Run</p>${table(['Date','Game','Result','Flag'],DATA.postseason2025.map(g=>[g.date,g.game,g.result,g.flag]))}`);
     bindSeasonSelector();
     bindRefresh();
   }
   function renderSettle(){
     const live=ledgerAvailable();
     const balances=live?memberBalances():DATA.activeFunds.map(f=>({name:f.name,amount:f.balance,recent:0}));
+    const sharedBalances=live?sharedOpportunityBalances():[];
     const rows=live?settlementRows():[];
+    const sharedRows=live?sharedOpportunitySettlementRows():[];
     const fundPos=live?fundPositionFromBalances(balances):0;
+    const sharedPos=live?fundPositionFromBalances(sharedBalances):0;
     const fundTone=fundPos<0?'neg':'';
     const fundText=fundPos>0.005?'cash/proceeds to distribute or carry forward':fundPos<-0.005?'selected scope is underfunded':'fund depleted / no balance in this scope';
-    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balances, ticket-fund position, and a practical fund settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Ticket Fund Position',money(fundPos),fundText,fundTone)}</div>${live?(dennisView()?notice(scopeNote('Live settlement')+' <b>Positive member balance means this member is owed money back from the fund. Negative member balance means this member owes money into the fund.</b> For 2026, Dennis confirmed everyone is fully paid, so the fund starts at $0 and stays depleted until the first sale. Dennis_x2 is rolled into Dennis on the member view, but it is still treated as its own 2026 fund share for cost allocation.'):''):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Fund Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> this scope is already settled at $0.00.')}${dennisView()?`<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(scopeRows(),20):''}${live?transactionFiltersBlock(20):''}`:''}`);
+    const sharedText=sharedPos>0.005?'cash/proceeds in the shared opportunity pool':sharedPos<-0.005?'shared opportunity is underfunded':'shared opportunity pool is settled';
+    layout('Settlement','Member Settlement Report','This view converts the live ledger into member balances, ticket-fund position, and a practical fund settlement plan.',`${seasonSelectorBlock()}<div class="grid">${balances.map(b=>card(b.name,money(b.amount),`${b.recent||0} ledger rows`,b.amount<0?'neg':'')).join('')}${card('Ticket Fund Position',money(fundPos),fundText,fundTone)}</div>${live?(dennisView()?notice(scopeNote('Live settlement')+' <b>Positive member balance means this member is owed money back from the fund. Negative member balance means this member owes money into the fund.</b> For 2026, Dennis confirmed everyone is fully paid, so the fund starts at $0 and stays depleted until the first sale. Dennis_x2 is rolled into Dennis on the member view, but it is still treated as its own 2026 fund share for cost allocation.'):''):refreshBlock()}<p class="eyebrow" style="margin-top:26px">Suggested Fund Settlement</p>${rows.length?table(['From','To','Amount','Reason'],rows):notice('<b>No settlement transfers needed:</b> this scope is already settled at $0.00.')}${sharedRows.length?`<p class="eyebrow" style="margin-top:26px">Shared Opportunity Settlement</p><div class="grid">${sharedBalances.map(b=>card(b.name,money(b.amount),`${b.recent||0} shared rows`,b.amount<0?'neg':'')).join('')}${card('Shared Opportunity Position',money(sharedPos),sharedText,sharedPos<0?'neg':'')}</div>${notice('The shared opportunity pool is tracked separately from the season fund. This keeps the 2026 season balance at $0 while still showing who owes / is owed on the Michigan-style purchase pool.')}${table(['From','To','Amount','Reason'],sharedRows)}`:''}${dennisView()?`<p class="eyebrow" style="margin-top:26px">Member Balance Audit</p>${live?settlementAuditTable():''}<p class="eyebrow" style="margin-top:26px">Rows Included</p>${live?auditTxnTable(fundScopeRows(),20):''}${live?transactionFiltersBlock(20):''}`:''}`);
     bindSeasonSelector(); bindRefresh(); bindFilters();
   }
 
@@ -786,15 +822,15 @@
     if(owner==='Dennis') out.DennisSeat1=amount; if(owner==='Joel') out.JoelSeat=amount; if(owner==='Kyle') out.KyleSeat=amount; if(owner==='Seth') out.SethSeat=amount; if(owner==='Dennis x 2') out.DennisSeat2=amount;
     return out;
   }
-  function applyPreset(){const p=selectedPreset(); $('#txAsset').value=p.assetType; $('#txCategory').value=p.category; $('#txType').value=p.transactionType; $('#txAllocation').value=p.allocationType; $('#txOwner').value=p.owner; if(!$('#txDesc').value || $('#txDesc').value==='Manual adjustment') $('#txDesc').value=p.description; const amt=$('#txAmount'); const n=Number(amt.value||0); if(p.sign==='negative'&&n>0)amt.value=String(-Math.abs(n)); if(p.sign==='positive'&&n<0)amt.value=String(Math.abs(n)); const hint=$('#presetHint'); if(hint)hint.textContent=p.hint||''; if($('#reversalBox'))$('#reversalBox').style.display=($('#txPreset').value==='reversal'?'block':'none'); applyFundType(); }
+  function applyPreset(){const p=selectedPreset(); $('#txAsset').value=p.assetType; $('#txCategory').value=p.category; $('#txType').value=p.transactionType; $('#txAllocation').value=p.allocationType; $('#txOwner').value=p.owner; if(!$('#txDesc').value || $('#txDesc').value==='Manual adjustment') $('#txDesc').value=p.description; const amt=$('#txAmount'); const n=Number(amt.value||0); if(p.sign==='negative'&&n>0)amt.value=String(-Math.abs(n)); if(p.sign==='positive'&&n<0)amt.value=String(Math.abs(n)); const hint=$('#presetHint'); if(hint)hint.textContent=p.hint||''; if($('#reversalBox'))$('#reversalBox').style.display=($('#txPreset').value==='reversal'?'block':'none');}
   function buildTransactionPreview(){
-    const date=$('#txDate').value||new Date().toISOString().slice(0,10); const assetType=$('#txAsset').value; const amount=round2($('#txAmount').value||0); const owner=$('#txOwner').value; const description=($('#txDesc').value||'').trim(); const season=Number($('#txSeason').value||seasonFromDate(date)); const allocationType=$('#txAllocation').value; const category=$('#txCategory').value; const transactionType=$('#txType').value; const gameId=($('#txGameId').value||'').trim(); const game=($('#txGame').value||'').trim(); const notes=($('#txNotes').value||'').trim(); const fundType=selectedFundType();
-    const a=allocation(owner,allocationType,assetType,amount,season); return {date,sourceYear:season,sourceRow:'',season,gameId,game,assetType,category,transactionType,description,allocationType:a.allocationType,totalAmount:amount,owner,notes,fundType,allocation:a};
+    const date=$('#txDate').value||new Date().toISOString().slice(0,10); const assetType=$('#txAsset').value; const amount=round2($('#txAmount').value||0); const owner=$('#txOwner').value; const description=($('#txDesc').value||'').trim(); const season=Number($('#txSeason').value||seasonFromDate(date)); const allocationType=$('#txAllocation').value; const category=$('#txCategory').value; const transactionType=$('#txType').value; const gameId=($('#txGameId').value||'').trim(); const game=($('#txGame').value||'').trim(); const notes=($('#txNotes').value||'').trim();
+    const a=allocation(owner,allocationType,assetType,amount,season); return {date,sourceYear:season,sourceRow:'',season,gameId,game,assetType,category,transactionType,description,allocationType:a.allocationType,totalAmount:amount,owner,notes,allocation:a};
   }
-  function validationErrors(p){const errs=[]; const preset=selectedPreset(); const fundType=selectedFundType(); if(!p.date)errs.push('Transaction date is required.'); if(!p.description)errs.push('Description is required.'); if(!fundType)errs.push('Fund Type is required.'); if(!Number.isFinite(p.totalAmount)||p.totalAmount===0)errs.push('Amount must be a non-zero number.'); if(p.assetType==='Parking'&&!['Member Split','Dennis Joel Kyle Split','Member Specific'].includes(p.allocationType))errs.push('Parking should be allocated at member level, not seat level.'); if(['Ticket Purchase','Parking Purchase','Future Season Ticket','Postseason Purchase','Reimbursement'].includes(p.category)&&p.totalAmount>0)errs.push('This preset usually writes as a negative amount.'); if(['Sale','Postseason Resale','Manual Top-off'].includes(p.category)&&p.totalAmount<0)errs.push('This preset usually writes as a positive amount.'); if(p.assetType==='Game Ticket'&&p.allocationType==='Member Split')errs.push('Game tickets should usually be seat split or member-specific.'); if(p.category==='Test'&&!/test/i.test(p.description))errs.push('Test preset description should include TEST so it is easy to clean up.'); if(preset.label.startsWith('Reversal')&&!/reversal/i.test(p.description))errs.push('Reversal description should identify the original transaction.'); if(fundType==='Season Fund'&&p.allocationType!=='Seat Split')errs.push('Season Fund should use Seat Split allocation.'); if(fundType==='Shared Opportunity'&&p.allocationType!=='Member Split')errs.push('Shared Opportunity should use Member Split allocation.'); if(fundType==='Parking Only'&&p.assetType!=='Parking')errs.push('Parking Only should be used with Parking transactions.'); if(fundType==='Adjustment'&&p.assetType!=='Adjustment')errs.push('Adjustment should use the Adjustment asset type.'); if(!connection.connected)errs.push('Connect OneDrive before appending.'); if(!connection.isManager)errs.push('Only the configured manager can append rows.'); return errs;}
+  function validationErrors(p){const errs=[]; const preset=selectedPreset(); if(!p.date)errs.push('Transaction date is required.'); if(!p.description)errs.push('Description is required.'); if(!Number.isFinite(p.totalAmount)||p.totalAmount===0)errs.push('Amount must be a non-zero number.'); if(p.assetType==='Parking'&&!['Member Split','Dennis Joel Kyle Split','Member Specific'].includes(p.allocationType))errs.push('Parking should be allocated at member level, not seat level.'); if(['Ticket Purchase','Parking Purchase','Future Season Ticket','Postseason Purchase','Reimbursement'].includes(p.category)&&p.totalAmount>0)errs.push('This preset usually writes as a negative amount.'); if(['Sale','Postseason Resale','Manual Top-off'].includes(p.category)&&p.totalAmount<0)errs.push('This preset usually writes as a positive amount.'); if(p.assetType==='Game Ticket'&&p.allocationType==='Member Split')errs.push('Game tickets should usually be seat split or seat-owner only.'); if(p.category==='Test'&&!/test/i.test(p.description))errs.push('Test preset description should include TEST so it is easy to clean up.'); if(preset.label.startsWith('Reversal')&&!/reversal/i.test(p.description))errs.push('Reversal description should identify the original transaction.'); if(!connection.connected)errs.push('Connect OneDrive before appending.'); if(!connection.isManager)errs.push('Only the configured manager can append rows.'); return errs;}
   function buildTransactionRow(txnId,p){const a=p.allocation; return [txnId,p.sourceYear,p.sourceRow,p.date,p.season,p.gameId,p.game,p.assetType,p.category,p.transactionType,p.description,p.allocationType,p.totalAmount,a.Dennis,a.Joel,a.Kyle,a.Seth,a.Dennis_x2,a.DennisSeat1,a.JoelSeat,a.KyleSeat,a.SethSeat,a.DennisSeat2,'No','',p.notes||'Entered from Hoosier Ticket Command Center web app'];}
   function profileStatus(){if(!connection.connected)return '<b>Status:</b> Not connected. Click Connect OneDrive before writing.'; const email=userEmail(connection.profile); return `<b>Status:</b> Connected as ${email||'Microsoft account'} · ${connection.isManager?'Manager writeback enabled':'Read-only; not manager account'}`;}
-  function renderManagerFull(){layout('Manager','Real Transaction Workflow','Use presets to build clean rows, preview the allocation, or create a reversal instead of deleting history.',`<div class="card"><div class="notice">${profileStatus()}</div><div class="form"><label>Fund Type<select id="txFundType"><option>Season Fund</option><option>Shared Opportunity</option><option>Parking Only</option><option>Adjustment</option></select></label><label>Preset<select id="txPreset">${Object.entries(presets).map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('')}</select></label><label>Transaction date<input type="date" id="txDate"></label><label>Season<input id="txSeason" type="number" value="2026"></label><label>Game ID<input id="txGameId" placeholder="ex: 2026-01"></label><label class="wide">Game / event<input id="txGame" placeholder="ex: IU vs Purdue"></label><label>Asset type<select id="txAsset"><option>Game Ticket</option><option>Parking</option><option>Fee</option><option>Adjustment</option><option>Travel</option><option>Fund</option></select></label><label>Category<input id="txCategory" value="Manual Entry"></label><label>Transaction type<input id="txType" value="Manual Entry"></label><label>Allocation type<select id="txAllocation"><option>Member Specific</option><option>Seat Owner Only</option><option>Seat Split</option><option>Member Split</option><option>Dennis Joel Kyle Split</option></select></label><label>Owner / split<select id="txOwner"><option>Dennis</option><option>Joel</option><option>Kyle</option><option>Seth</option><option>Dennis x 2</option><option>All Members</option><option>All Active Seats</option><option>Dennis Joel Kyle</option></select></label><label>Amount<input id="txAmount" type="number" step="0.01" placeholder="0.00"></label><label class="wide">Description<textarea id="txDesc" placeholder="Example: IU vs Purdue parking resale"></textarea></label><label class="wide">Notes<textarea id="txNotes" placeholder="Optional notes"></textarea></label></div><div class="notice"><b>Preset guide:</b> <span id="presetHint"></span></div><div class="notice" id="reversalBox" style="display:none"><b>Reversal helper:</b> select a recent transaction and click Build Reversal. This creates an offsetting row while preserving the original.<br><select id="reverseTxn"><option value="">Choose transaction</option>${liveLedger.loaded?reversalOptions():''}</select> <button class="btn small" id="buildReversalBtn">Build reversal</button></div><p><button class="btn" id="previewBtn">Preview row</button> <button class="btn" id="appendBtn">Append to OneDrive table</button> <button class="btn" id="refreshManagerBtn">Refresh workbook</button></p><pre class="notice" id="previewBox">No row preview yet.</pre><div id="allocationPreview"></div><div class="notice"><b>Tip:</b> Sales/resales should usually be positive. Purchases, reimbursements, fees, and season payments should usually be negative. Use reversals for mistakes instead of deleting rows.</div></div><div class="card"><h3>Publish Member Snapshot</h3><p>Use this after you add or change transactions so Joel and Kyle see the latest read-only member dashboard.</p><div class="notice"><b>Publish checklist</b><ol style="margin:8px 0 0 20px;padding:0"><li>Click <b>Refresh workbook</b> so this page has the latest OneDrive rows.</li><li>Review Score, Money, Seats, Parking, and Settle in manager mode.</li><li>Click <b>Download public-ledger.json</b>.</li><li>In GitHub, replace only <b>data/public-ledger.json</b> with the downloaded file.</li><li>Open the normal member link in incognito and confirm the snapshot timestamp updated.</li></ol></div><p><button class="btn" id="publishSnapshotBtn">Download public-ledger.json</button></p><div class="notice"><b>Do not upload app patch placeholder data over the member snapshot.</b> During normal code patches, preserve <b>data/public-ledger.json</b>. Only replace it when you intentionally publish a new member snapshot.</div><div class="notice"><b>Privacy warning:</b> if your GitHub Pages site is public, this snapshot is public to anyone with the link.</div></div>${transactionFiltersBlock(20)}`); setTimeout(bindManager,0); bindRefresh(); setTimeout(bindFilters,0);}
+  function renderManagerFull(){layout('Manager','Real Transaction Workflow','Use presets to build clean rows, preview the allocation, or create a reversal instead of deleting history.',`<div class="card"><div class="notice">${profileStatus()}</div><div class="form"><label>Preset<select id="txPreset">${Object.entries(presets).map(([k,p])=>`<option value="${k}">${p.label}</option>`).join('')}</select></label><label>Transaction date<input type="date" id="txDate"></label><label>Season<input id="txSeason" type="number" value="2026"></label><label>Game ID<input id="txGameId" placeholder="ex: 2026-01"></label><label class="wide">Game / event<input id="txGame" placeholder="ex: IU vs Purdue"></label><label>Asset type<select id="txAsset"><option>Game Ticket</option><option>Parking</option><option>Fee</option><option>Adjustment</option><option>Travel</option><option>Fund</option></select></label><label>Category<input id="txCategory" value="Manual Entry"></label><label>Transaction type<input id="txType" value="Manual Entry"></label><label>Allocation type<select id="txAllocation"><option>Member Specific</option><option>Seat Owner Only</option><option>Seat Split</option><option>Member Split</option><option>Dennis Joel Kyle Split</option></select></label><label>Owner / split<select id="txOwner"><option>Dennis</option><option>Joel</option><option>Kyle</option><option>Seth</option><option>Dennis x 2</option><option>All Members</option><option>All Active Seats</option><option>Dennis Joel Kyle</option></select></label><label>Amount<input id="txAmount" type="number" step="0.01" placeholder="0.00"></label><label class="wide">Description<textarea id="txDesc" placeholder="Example: IU vs Purdue parking resale"></textarea></label><label class="wide">Notes<textarea id="txNotes" placeholder="Optional notes"></textarea></label></div><div class="notice"><b>Preset guide:</b> <span id="presetHint"></span></div><div class="notice" id="reversalBox" style="display:none"><b>Reversal helper:</b> select a recent transaction and click Build Reversal. This creates an offsetting row while preserving the original.<br><select id="reverseTxn"><option value="">Choose transaction</option>${liveLedger.loaded?reversalOptions():''}</select> <button class="btn small" id="buildReversalBtn">Build reversal</button></div><p><button class="btn" id="previewBtn">Preview row</button> <button class="btn" id="appendBtn">Append to OneDrive table</button> <button class="btn" id="refreshManagerBtn">Refresh workbook</button></p><pre class="notice" id="previewBox">No row preview yet.</pre><div id="allocationPreview"></div><div class="notice"><b>Tip:</b> Sales/resales should usually be positive. Purchases, reimbursements, fees, and season payments should usually be negative. Use reversals for mistakes instead of deleting rows.</div></div><div class="card"><h3>Publish Member Snapshot</h3><p>Use this after you add or change transactions so Joel and Kyle see the latest read-only member dashboard.</p><div class="notice"><b>Publish checklist</b><ol style="margin:8px 0 0 20px;padding:0"><li>Click <b>Refresh workbook</b> so this page has the latest OneDrive rows.</li><li>Review Score, Money, Seats, Parking, and Settle in manager mode.</li><li>Click <b>Download public-ledger.json</b>.</li><li>In GitHub, replace only <b>data/public-ledger.json</b> with the downloaded file.</li><li>Open the normal member link in incognito and confirm the snapshot timestamp updated.</li></ol></div><p><button class="btn" id="publishSnapshotBtn">Download public-ledger.json</button></p><div class="notice"><b>Do not upload app patch placeholder data over the member snapshot.</b> During normal code patches, preserve <b>data/public-ledger.json</b>. Only replace it when you intentionally publish a new member snapshot.</div><div class="notice"><b>Privacy warning:</b> if your GitHub Pages site is public, this snapshot is public to anyone with the link.</div></div>${transactionFiltersBlock(20)}`); setTimeout(bindManager,0); bindRefresh(); setTimeout(bindFilters,0);}
   function renderManager(){
     if(!connection.isManager){
       const mode=viewModeLabel();
@@ -805,8 +841,8 @@
   }
 
   function buildReversalFromSelected(){const id=$('#reverseTxn').value; const t=txnById(id); if(!t){alert('Choose a transaction to reverse.'); return;} $('#txDate').value=new Date().toISOString().slice(0,10); $('#txSeason').value=t.Season||seasonFromDate(t.TxnDate); $('#txGameId').value=t.GameID||''; $('#txGame').value=t.Game||''; $('#txAsset').value=t.AssetType||'Adjustment'; $('#txCategory').value='Reversal'; $('#txType').value='Reversal'; $('#txAllocation').value=t.AllocationType||'Member Specific'; $('#txAmount').value=String(round2(-Number(t.TotalAmount||0))); $('#txDesc').value='Reversal of '+t.TxnID+' - '+(t.Description||t.Game||'transaction'); $('#txNotes').value='Reversal created from Hoosier Ticket Command Center for '+t.TxnID; const members=['Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2']; const largest=members.map(m=>[m,Math.abs(Number(t[m]||0))]).sort((a,b)=>b[1]-a[1])[0]; const map={Dennis:'Dennis',Joel:'Joel',Kyle:'Kyle',Seth:'Seth',Dennis_x2:'Dennis x 2',DennisSeat1:'Dennis',JoelSeat:'Joel',KyleSeat:'Kyle',SethSeat:'Seth',DennisSeat2:'Dennis x 2'}; if(largest&&largest[1]>0)$('#txOwner').value=map[largest[0]]||'Dennis'; previewCurrent();}
-  function previewCurrent(){const p=buildTransactionPreview(); const errs=validationErrors(p); $('#previewBox').textContent=JSON.stringify({readyToAppend:errs.length===0,validation:errs,preview:p,rowShape:buildTransactionRow('TXN-NEXT',p),fundType:selectedFundType()},null,2); $('#allocationPreview').innerHTML='<p class="eyebrow" style="margin-top:18px">Allocation preview</p>'+allocationPreviewTable(p);}
-  function bindManager(){const today=new Date().toISOString().slice(0,10); $('#txDate').value=today; $('#txFundType').onchange=()=>{applyFundType(); previewCurrent();}; $('#txPreset').onchange=()=>{applyPreset(); previewCurrent();}; applyPreset(); applyFundType(); $('#previewBtn').onclick=previewCurrent; $('#buildReversalBtn')&&($('#buildReversalBtn').onclick=buildReversalFromSelected); $('#refreshManagerBtn').onclick=async()=>{await refreshLedger(); show('manager');}; const ps=$('#publishSnapshotBtn'); if(ps)ps.onclick=downloadPublicSnapshot; $('#appendBtn').onclick=async()=>{try{if(!window.HTCC_GRAPH||!window.HTCC_GRAPH.appendTransaction)throw new Error('Graph writeback client not loaded.'); const p=buildTransactionPreview(); const errs=validationErrors(p); if(errs.length)throw new Error(errs.join(' ')); if(!confirm('Append '+money(p.totalAmount)+' as '+p.category+' / '+p.allocationType+'?')) return; $('#previewBox').textContent='Appending row to OneDrive...'; const txnId=await window.HTCC_GRAPH.nextTransactionId(); const row=buildTransactionRow(txnId,p); const result=await window.HTCC_GRAPH.appendTransaction(row); liveLedger.lastWrite={txnId,row,result,at:new Date()}; await refreshLedger(); $('#previewBox').textContent=JSON.stringify({status:'Appended and refreshed from OneDrive TransactionsTable',txnId,row,graphResult:result,liveRows:liveLedger.transactions.length},null,2); alert('Appended '+txnId+' and refreshed workbook data.'); show('manager');}catch(e){console.error('Append failed',e); $('#previewBox').textContent='Append failed: '+(e.message||String(e)); alert('Append failed: '+(e.message||String(e)));}};}
+  function previewCurrent(){const p=buildTransactionPreview(); const errs=validationErrors(p); $('#previewBox').textContent=JSON.stringify({readyToAppend:errs.length===0,validation:errs,preview:p,rowShape:buildTransactionRow('TXN-NEXT',p)},null,2); $('#allocationPreview').innerHTML='<p class="eyebrow" style="margin-top:18px">Allocation preview</p>'+allocationPreviewTable(p);}
+  function bindManager(){const today=new Date().toISOString().slice(0,10); $('#txDate').value=today; $('#txPreset').onchange=applyPreset; applyPreset(); $('#previewBtn').onclick=previewCurrent; $('#buildReversalBtn')&&($('#buildReversalBtn').onclick=buildReversalFromSelected); $('#refreshManagerBtn').onclick=async()=>{await refreshLedger(); show('manager');}; const ps=$('#publishSnapshotBtn'); if(ps)ps.onclick=downloadPublicSnapshot; $('#appendBtn').onclick=async()=>{try{if(!window.HTCC_GRAPH||!window.HTCC_GRAPH.appendTransaction)throw new Error('Graph writeback client not loaded.'); const p=buildTransactionPreview(); const errs=validationErrors(p); if(errs.length)throw new Error(errs.join(' ')); if(!confirm('Append '+money(p.totalAmount)+' as '+p.category+' / '+p.allocationType+'?')) return; $('#previewBox').textContent='Appending row to OneDrive...'; const txnId=await window.HTCC_GRAPH.nextTransactionId(); const row=buildTransactionRow(txnId,p); const result=await window.HTCC_GRAPH.appendTransaction(row); liveLedger.lastWrite={txnId,row,result,at:new Date()}; await refreshLedger(); $('#previewBox').textContent=JSON.stringify({status:'Appended and refreshed from OneDrive TransactionsTable',txnId,row,graphResult:result,liveRows:liveLedger.transactions.length},null,2); alert('Appended '+txnId+' and refreshed workbook data.'); show('manager');}catch(e){console.error('Append failed',e); $('#previewBox').textContent='Append failed: '+(e.message||String(e)); alert('Append failed: '+(e.message||String(e)));}};}
 
   function normalizePublicTxn(row){
     if(Array.isArray(row)){const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=row[i]); return obj;}
@@ -877,13 +913,12 @@
 
 
   const renderers={score:renderScore,money:renderMoney,seats:renderSeats,parking:renderParking,history:renderHistory,settle:renderSettle,manager:renderManager};
-  function scrollToPageTop(){try{window.scrollTo({top:0,left:0,behavior:'auto'}); document.documentElement.scrollTop=0; document.body.scrollTop=0;}catch(e){}}
-  function show(id, scrollTop){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)(); if(scrollTop) requestAnimationFrame(scrollToPageTop);}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
+  function show(id){try{if(id==='manager'&&!dennisView()) id='score'; const changingPage=id!==current; if(changingPage) selectedSeason='active'; current=id; renderNav(); document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id)); (renderers[id]||renderScore)(); if(changingPage) window.scrollTo({top:0,left:0,behavior:'auto'});}catch(err){console.error('HTCC render failure',id,err); $('#app').innerHTML=`<section><p class="eyebrow">App error</p><h2>Something failed to render</h2>${notice('<b>Error:</b> '+(err&&err.message?err.message:String(err)),'danger')}</section>`;}}
   async function connectOneDrive(){
     if(connection.connected){ await refreshLedger(); setMode(); show(current); return; }
     if(!window.HTCC_GRAPH)throw new Error('Graph client not loaded');
     const res=await window.HTCC_GRAPH.connect(); connection.connected=true; connection.profile=res.profile||null; const email=userEmail(connection.profile); connection.isManager=!!email&&email===managerEmail(); await refreshLedger(); setMode(); show(current); alert('Connected as '+(email||'Microsoft account')+(connection.isManager?' · Manager writeback enabled':' · Read-only account')+'. Workbook rows loaded: '+(liveLedger.transactions.length||0));
   }
-  function init(){try{setMode(); renderNav(); const n=$('#bottomNav'); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen,true);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
+  function init(){try{setMode(); renderNav(); const n=$('#bottomNav'); n.onclick=e=>{const b=e.target.closest('button[data-screen]'); if(b)show(b.dataset.screen);}; const cb=$('#connectBtn'); if(cb)cb.onclick=async()=>{try{await connectOneDrive();}catch(e){alert(e.message||String(e));}}; show('score'); loadPublicSnapshot().then(()=>{setMode(); if(publicSnapshot.loaded)show(current);});}catch(e){console.error(e); $('#app').innerHTML=`<div class="notice danger"><b>Startup failed:</b> ${e.message||String(e)}</div>`;}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();

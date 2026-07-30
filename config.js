@@ -1,6 +1,5 @@
 window.HTCC_CONFIG = {
   authMode: "graph",
-  graphEnabled: true,
   clientId: "4c8fba96-2410-4c09-964b-182483a0b551",
   tenantId: "consumers",
   authority: "https://login.microsoftonline.com/consumers",
