@@ -59,6 +59,17 @@ After app registration, copy `config.sample.js` to `config.js` and update:
 
 The workbook remains the source of truth until manager writeback is tested.
 
+## Publishing the member snapshot
+
+Manager has two ways to publish `data/public-ledger.json` after changes:
+- **Connect GitHub** (recommended) — paste a fine-grained GitHub token (scoped
+  to just this repo's Contents: read/write) once in Manager. It's saved in
+  that browser's local storage, and "Publish to GitHub" pushes the snapshot
+  directly with no manual file upload. Create a token at
+  https://github.com/settings/personal-access-tokens/new.
+- **Manual download** — always available as a fallback: download the JSON and
+  replace `data/public-ledger.json` on GitHub yourself.
+
 ## Privacy
 
 `data/public-ledger.json` contains real financial data (real dollar amounts

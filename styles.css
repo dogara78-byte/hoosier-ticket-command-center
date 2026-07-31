@@ -113,3 +113,31 @@ details.card .table { margin-top: 10px; }
   h2 { font-size: 22px; }
   .app-footer { margin-bottom: 108px; }
 }
+
+/* dark mode - follows OS setting, no manual toggle */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #16130f;
+    --ink: #f1ece0;
+    --muted: #b9ad98;
+    --line: #3a3226;
+    --gold: #d8b567;
+    --green: #4db98a;
+    --red: #e2665a;
+    --shadow: 0 8px 20px -14px rgba(0,0,0,.75);
+  }
+  body { background: var(--paper); }
+  .notice, .card, .table, .bottom-nav, .app-footer span,
+  .form input, .form select, .form textarea {
+    background: #221d16; color: var(--ink); border-color: var(--line);
+  }
+  .card h3, th { color: #c9bda3; }
+  .navbtn { color: #c9bda3; }
+}
+
+/* print - for sharing/printing the Settle Up summary */
+@media print {
+  .bottom-nav, .app-footer, .status, .stripe { display: none !important; }
+  body { padding-bottom: 0; background: #fff; color: #000; }
+  .card, .table, .notice { box-shadow: none; }
+}

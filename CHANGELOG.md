@@ -1,5 +1,28 @@
 # Changelog
 
+## v3.1.0 — One fund, auto-publish, dark mode
+
+- **Unified the fund model**: `SharedOpportunity` (postseason/away/single-game
+  purchases split evenly Dennis/Joel/Kyle) now counts toward the same overall
+  per-member balance instead of being tracked as a separate pool.
+- Fixed two rounding bugs surfaced by that change: `round2()` rounded `.5`
+  toward +Infinity regardless of sign (asymmetric on exact half-cent splits),
+  and per-seat cost shares were rounded once per seat instead of once per
+  owner's total (drifted a cent for Dennis's two seats). Both now round
+  correctly.
+- Removed dead seat-balance code (`seatBalances`/`seatNet`/`seatExpenseShare`/
+  etc.) left over from the v3.0 rebuild that was never wired into any screen.
+- **Auto-publish to GitHub**: Manager can connect a GitHub token once
+  (`github-client.js`) and publish the member snapshot with one click instead
+  of downloading and manually uploading the file. Manual download stays as a
+  fallback.
+- **Settle Up**: added a "Copy summary" button on Home's settlement section,
+  plus print-friendly styles for sharing/printing a clean payout recap.
+- **Dark mode**: follows OS `prefers-color-scheme`, no manual toggle.
+- **Freshness indicator**: "Updated X ago" now shows prominently on Home,
+  not just in the footer.
+- Branding: added a 🌭 next to "Halftime Glizzy's Ledger".
+
 ## v3.0.0 — Consolidated rebuild
 
 Replaces the incremental patch history (previously tracked as ~48 separate

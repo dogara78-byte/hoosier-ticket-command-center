@@ -12,5 +12,11 @@ window.HTCC_CONFIG = {
       transactions: "TransactionsTable"
     }
   },
+  github: {
+    owner: "YOUR_GITHUB_USERNAME",
+    repo: "hoosier-ticket-command-center",
+    branch: "main",
+    path: "data/public-ledger.json"
+  },
   scopes: ["Files.ReadWrite", "User.Read"]
 };

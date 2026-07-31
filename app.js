@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v3.0.0-consolidated';
+  const VERSION = 'v3.1.0';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes','MoneyType'];
 
   // Static reference facts about the team/season. Not financial data, so it
@@ -114,6 +114,29 @@
     return '';
   }
   function setFooter(){const el=$('#footerUpdated'); if(el) el.textContent=dataUpdatedText();}
+  function fmtRelativeTime(iso){
+    if(!iso) return '';
+    const d=new Date(iso);
+    if(Number.isNaN(d.getTime())) return '';
+    const mins=Math.round((Date.now()-d.getTime())/60000);
+    if(mins<1) return 'just now';
+    if(mins<60) return mins+' minute'+(mins===1?'':'s')+' ago';
+    const hours=Math.round(mins/60);
+    if(hours<24) return hours+' hour'+(hours===1?'':'s')+' ago';
+    const days=Math.round(hours/24);
+    return days+' day'+(days===1?'':'s')+' ago';
+  }
+  function freshnessSourceIso(){
+    if(connection.connected && liveLedger.lastLoaded) return liveLedger.lastLoaded.toISOString?liveLedger.lastLoaded.toISOString():liveLedger.lastLoaded;
+    if(publicSnapshot.loaded && publicSnapshot.meta && publicSnapshot.meta.publishedAt) return publicSnapshot.meta.publishedAt;
+    return null;
+  }
+  function freshnessBadge(){
+    const iso=freshnessSourceIso();
+    if(!iso) return '';
+    const stale=(Date.now()-new Date(iso).getTime())>1000*60*60*48;
+    return notice('<b>Updated '+fmtRelativeTime(iso)+'</b> · '+fmtDateTime(iso),stale?'danger':'');
+  }
   function setMode(){
     let text='Read-only member view';
     const btn=$('#connectBtn');
@@ -414,14 +437,32 @@
       ? `${card('Fund Status','Settled','everyone is paid up for '+selectedSeasonLabel())}${card('Fund Balance',money(fundPos),'cash available right now')}`
       : `${card('Fund Status','Open Balances','someone owes / is owed money')}${card('Fund Position',money(fundPos),fundPos<0?'scope is underfunded':'cash to distribute or carry forward',fundPos<0?'neg':'')}`;
     layout('Home','Game Day Dashboard','Fund status for the '+selectedSeasonLabel()+' scope: who owes what, and what happened recently.',
-      `${seasonSelectorBlock()}${unclassifiedNotice(rows)}<div class="grid two">${headline}</div>`+
+      `${freshnessBadge()}${seasonSelectorBlock()}${unclassifiedNotice(rows)}<div class="grid two">${headline}</div>`+
       `<p class="eyebrow" style="margin-top:26px">Member Status</p><div class="grid">${balances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the fund':'owes the fund'),b.amount<0?'neg':'')).join('')}</div>`+
-      (settled?'':`<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${table(['From','To','Amount','Reason'],settlementRows())}`)+
+      (settled?'':`<p class="eyebrow" style="margin-top:26px">Settle Up</p><div class="card settle-card"><p class="sub">Suggested transfers to settle ${selectedSeasonLabel()} today.</p><p><button class="btn small" id="copySettleBtn" type="button">Copy summary</button></p>${table(['From','To','Amount','Reason'],settlementRows())}</div>`)+
       `<p class="eyebrow" style="margin-top:26px">Recent Activity</p>${activityTable(recent)}`+
       (dennisView()?`<details class="card"><summary><b>Data status</b></summary>${refreshBlock()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length)+' rows.'):''}</details>`:'')+
       historyCard()
     );
-    bindSeasonSelector(); bindRefresh();
+    bindSeasonSelector(); bindRefresh(); bindSettleUp();
+  }
+  function settlementSummaryText(rows=settlementRows()){
+    if(!rows.length) return 'Everyone is settled for '+selectedSeasonLabel()+' - no transfers needed.';
+    return 'Settle up for '+selectedSeasonLabel()+':\n'+rows.map(r=>`${r[0]} owes ${r[1]} ${r[2]}`).join('\n');
+  }
+  function bindSettleUp(){
+    const btn=$('#copySettleBtn');
+    if(!btn) return;
+    btn.onclick=async()=>{
+      const text=settlementSummaryText();
+      try{
+        await navigator.clipboard.writeText(text);
+        const original=btn.textContent; btn.textContent='Copied!';
+        setTimeout(()=>{btn.textContent=original;},1500);
+      }catch(e){
+        window.prompt('Copy blocked by the browser - copy this manually:', text);
+      }
+    };
   }
 
   function renderActivity(){
@@ -551,8 +592,7 @@
       `<p><button class="btn" id="previewBtn">Preview row</button> <button class="btn" id="appendBtn">Append to OneDrive table</button> <button class="btn" id="refreshManagerBtn">Refresh workbook</button></p>`+
       `<pre class="notice" id="previewBox">No row preview yet.</pre></div>`+
       `<div class="card"><h3>Publish Member Snapshot</h3><p>Use this after adding/changing transactions so Joel and Kyle see the latest read-only dashboard.</p>`+
-      `<div class="notice"><b>Publish checklist</b><ol style="margin:8px 0 0 20px;padding:0"><li>Click <b>Refresh workbook</b>.</li><li>Review Home and Activity in manager mode.</li><li>Click <b>Download public-ledger.json</b>.</li><li>In GitHub, replace <b>data/public-ledger.json</b> with the downloaded file.</li><li>Open the member link in incognito and confirm the timestamp updated.</li></ol></div>`+
-      `<p><button class="btn" id="publishSnapshotBtn">Download public-ledger.json</button></p>`+
+      publishSnapshotBlock()+
       `<div class="notice"><b>Privacy warning:</b> if your GitHub Pages site is public, this snapshot is public to anyone with the link.</div></div>`+
       `<p class="eyebrow" style="margin-top:26px">All Transactions</p>${activityFiltersBlock()}${activityTable(filteredTxns(),200)}`+
       `<details class="card"><summary><b>Audit: raw rows</b></summary>${auditTxnTable(scopeRows(),40)}</details>`
@@ -598,6 +638,7 @@
     if($('#buildReversalBtn'))$('#buildReversalBtn').onclick=buildReversalFromSelected;
     $('#refreshManagerBtn').onclick=async()=>{await refreshLedger(); show('manager');};
     const ps=$('#publishSnapshotBtn'); if(ps)ps.onclick=downloadPublicSnapshot;
+    bindGithubControls();
     $('#appendBtn').onclick=async()=>{
       try{
         if(!window.HTCC_GRAPH||!window.HTCC_GRAPH.appendTransaction)throw new Error('Graph writeback client not loaded.');
@@ -619,6 +660,57 @@
         alert('Append failed: '+(e.message||String(e)));
       }
     };
+  }
+  const githubConnected=()=>!!(window.HTCC_GITHUB && window.HTCC_GITHUB.isConnected());
+  function publishSnapshotBlock(){
+    if(githubConnected()){
+      return `<div class="notice"><b>GitHub connected.</b> Click Publish to push the latest snapshot straight to the repo - no manual upload needed. <button class="btn small" id="disconnectGithubBtn" type="button">Disconnect</button></div>`+
+        `<p><button class="btn" id="publishGithubBtn">Publish to GitHub</button> <button class="btn small" id="publishSnapshotBtn">Download instead</button></p>`;
+    }
+    return `<div class="notice"><b>Connect GitHub</b> to publish with one click instead of downloading and manually uploading. Saved only in this browser's local storage on this device - use a fine-grained token scoped to just this repo's Contents (read/write), and revoke it from GitHub any time.</div>`+
+      `<div class="form compact"><label class="wide">GitHub token<input type="password" id="githubTokenInput" placeholder="github_pat_..."></label></div>`+
+      `<p><button class="btn" id="connectGithubBtn">Connect GitHub</button></p>`+
+      `<div class="notice"><b>Manual publish checklist</b><ol style="margin:8px 0 0 20px;padding:0"><li>Click <b>Refresh workbook</b>.</li><li>Review Home and Activity in manager mode.</li><li>Click <b>Download public-ledger.json</b>.</li><li>In GitHub, replace <b>data/public-ledger.json</b> with the downloaded file.</li><li>Open the member link in incognito and confirm the timestamp updated.</li></ol></div>`+
+      `<p><button class="btn" id="publishSnapshotBtn">Download public-ledger.json</button></p>`;
+  }
+  async function publishToGitHub(){
+    try{
+      if(!liveLedger.loaded || !liveLedger.transactions.length){alert('Load the workbook before publishing a member snapshot.'); return;}
+      if(!connection.isManager){alert('Only the manager account can publish the member snapshot.'); return;}
+      if(!window.HTCC_GITHUB||!window.HTCC_GITHUB.publishSnapshot) throw new Error('GitHub client not loaded.');
+      const btn=$('#publishGithubBtn'); if(btn){btn.disabled=true; btn.textContent='Publishing...';}
+      const json=JSON.stringify(buildPublicSnapshot(),null,2);
+      const res=await window.HTCC_GITHUB.publishSnapshot(json);
+      alert('Published to GitHub.'+(res&&res.commitUrl?' '+res.commitUrl:''));
+      show('manager');
+    }catch(e){
+      console.error('GitHub publish failed',e);
+      alert('GitHub publish failed: '+(e.message||String(e))+'. Use Download instead as a fallback.');
+      show('manager');
+    }
+  }
+  function bindGithubControls(){
+    const connectBtn=$('#connectGithubBtn');
+    if(connectBtn) connectBtn.onclick=async()=>{
+      try{
+        if(!window.HTCC_GITHUB) throw new Error('GitHub client not loaded.');
+        const input=$('#githubTokenInput');
+        connectBtn.disabled=true; connectBtn.textContent='Connecting...';
+        await window.HTCC_GITHUB.connect(input?input.value:'');
+        show('manager');
+      }catch(e){
+        alert('Could not connect: '+(e.message||String(e)));
+        connectBtn.disabled=false; connectBtn.textContent='Connect GitHub';
+      }
+    };
+    const disconnectBtn=$('#disconnectGithubBtn');
+    if(disconnectBtn) disconnectBtn.onclick=()=>{
+      if(!confirm('Disconnect GitHub? You can reconnect any time with a new token.')) return;
+      window.HTCC_GITHUB.disconnect();
+      show('manager');
+    };
+    const publishGithubBtn=$('#publishGithubBtn');
+    if(publishGithubBtn) publishGithubBtn.onclick=publishToGitHub;
   }
   function buildPublicSnapshot(){
     const rows=liveLedger.transactions.map(t=>{const obj={}; TXN_COLUMNS.forEach(c=>obj[c]=(t[c]===undefined?'':t[c])); return obj;});
