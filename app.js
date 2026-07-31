@@ -712,15 +712,18 @@
     return desc || 'Season / General';
   }
   function isRealGameSummaryRow(t){
-    const key=gameKeyForTxn(t).toLowerCase();
+    const key=gameKeyForTxn(t).toLowerCase().trim();
     const cat=String(t.Category||'').toLowerCase();
     const typ=String(t.TransactionType||'').toLowerCase();
+    const text=[key,cat,typ,rowText(t)].join(' ').toLowerCase();
     if(!key) return false;
+    if(/^\d+$/.test(key)) return false;
     // Exclude season rollups / balance rows / fund carry rows from the game-by-game view.
-    if(/season/.test(key)) return false;
-    if(/balance|opening balance|roll[- ]?forward|fund position|member \/ fund money|fund result/.test(key)) return false;
+    if(/season/.test(key) && !/(vs|bowl|championship|playoff|game)/.test(key)) return false;
+    if(/balance|opening balance|roll[- ]?forward|fund position|member \/ fund money|fund result|carry[- ]?forward|baseline/.test(text)) return false;
+    if(/ticket sales balance|parking balance|current balance|open seat balance|open parking balance/.test(text)) return false;
     if(/balance|opening balance|roll[- ]?forward/.test(cat+' '+typ)) return false;
-    return true;
+    return /(vs|bowl|championship|playoff|game|postseason|shared opportunity)/.test(text);
   }
   function gameGroupRows(rows=scopeRows()){
     const map=new Map();
