@@ -64,7 +64,7 @@
     postseasonResale:{label:'Postseason resale',moneyType:'TicketSale',assetType:'Game Ticket',category:'Postseason Resale',transactionType:'Postseason Resale',allocationType:'Seat Split',owner:'All Active Seats',sign:'positive',description:'Postseason resale',hint:'Use for resale proceeds from postseason tickets.'},
     manualTopoff:{label:'Manual top-off / donation',moneyType:'MemberFunding',assetType:'Adjustment',category:'Manual Top-off',transactionType:'Fund Donation',allocationType:'Dennis Joel Kyle Split',owner:'Dennis Joel Kyle',sign:'positive',description:'Manual top-off',hint:'Use when adding donated/top-off money to the fund.'},
     reimbursement:{label:'Reimbursement',moneyType:'OtherCost',assetType:'Adjustment',category:'Reimbursement',transactionType:'Reimbursement',allocationType:'Member Specific',owner:'Dennis',sign:'negative',description:'Reimbursement paid from fund',hint:'Use when the fund reimburses a member.'},
-    sharedOpportunity:{label:'Shared opportunity buy/resale',moneyType:'SharedOpportunity',assetType:'Game Ticket',category:'Shared Opportunity',transactionType:'Purchase/Resale',allocationType:'Dennis Joel Kyle Split',owner:'Dennis Joel Kyle',sign:'negative',description:'Shared opportunity purchase',hint:'Use for a one-off shared buy/resale kept separate from the season fund (Michigan-style pool).'},
+    sharedOpportunity:{label:'Shared opportunity buy/resale',moneyType:'SharedOpportunity',assetType:'Game Ticket',category:'Shared Opportunity',transactionType:'Purchase/Resale',allocationType:'Dennis Joel Kyle Split',owner:'Dennis Joel Kyle',sign:'negative',description:'Shared opportunity purchase',hint:'Use for a one-off shared buy/resale (postseason, away game, single-game purchase) split evenly Dennis/Joel/Kyle regardless of seat ownership. Still counts toward the same overall fund balance.'},
     adjustment:{label:'Adjustment',moneyType:'OtherCost',assetType:'Adjustment',category:'Adjustment',transactionType:'Manual Adjustment',allocationType:'Member Specific',owner:'Dennis',sign:'positive',description:'Manual adjustment',hint:'Use sparingly for manual corrections.'},
     reversal:{label:'Reversal / correction',moneyType:'OtherCost',assetType:'Adjustment',category:'Reversal',transactionType:'Reversal',allocationType:'Member Specific',owner:'Dennis',sign:'opposite',description:'Reversal of prior transaction',hint:'Preferred way to undo a row while preserving audit trail.'}
   };
@@ -81,7 +81,12 @@
 
   const $=s=>document.querySelector(s);
   const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const round2=v=>Math.round(Number(v||0)*100)/100;
+  // Math.round() always rounds .5 toward +Infinity, so round2(-18.375) would
+  // give -18.37 while round2(18.375) gives 18.38 - a 1-cent asymmetry on any
+  // exact half-cent split (e.g. a cost divided 4 ways landing on X.XX5).
+  // Round half-away-from-zero instead so a cost and its mirrored credit
+  // cancel to exactly $0.00 rather than drifting a cent apart.
+  const round2=v=>{const n=Number(v||0); return (n<0?-Math.round(-n*100):Math.round(n*100))/100;};
   const SETTLED_TOLERANCE = 1.00;
   const closeToZero = v => Math.abs(Number(v||0)) <= SETTLED_TOLERANCE;
   const settledAmount = v => closeToZero(v) ? 0 : round2(v);
@@ -191,10 +196,15 @@
     return seasons.length?Math.max(...seasons):2026;
   }
   function seasonRows(season=activeSeason()){return txRows().filter(t=>Number(t.Season||t.SourceYear||0)===Number(season));}
+  // There is one fund and one balance per member. Regular-season ticket
+  // money is attributed by seat (so Dennis, with two seats, gets two
+  // shares); one-off shared buys (postseason, away games, single-game
+  // purchases) are split evenly Dennis/Joel/Kyle instead. Both count toward
+  // the same overall balance - SharedOpportunity is a label for *how* the
+  // money was split, not a separate pool kept apart from the fund.
   function isSharedOpportunityRow(t){return moneyType(t)==='SharedOpportunity';}
   function fundScopeRows(season=selectedSeasonValue()){
-    const rows=season==='all'?txRows():seasonRows(season);
-    return rows.filter(t=>!isSharedOpportunityRow(t));
+    return season==='all'?txRows():seasonRows(season);
   }
   function sharedOpportunityRows(season=selectedSeasonValue()){
     const rows=season==='all'?txRows():seasonRows(season);
@@ -226,13 +236,7 @@
     const v=selectedSeasonValue();
     return (v==='all'?MEMBERS:activeMembersForSeason(v)).map(m=>m.key);
   }
-  function seatKeysForCurrentScope(){
-    const v=selectedSeasonValue();
-    return (v==='all'?SEATS:activeSeatsForSeason(v)).map(s=>s.key);
-  }
   function memberLabel(key){const m=MEMBERS.find(x=>x.key===key); return m?m.label:key;}
-  function seatLabel(key){const s=SEATS.find(x=>x.key===key); return s?s.label:key;}
-  function seatOwner(key){const s=SEATS.find(x=>x.key===key); return s?s.owner:key;}
   function rawPersonCredits(t,name){
     // Member columns represent cash/credit/proceeds attributed to that member.
     // Dennis's 2nd-seat money (Dennis_x2 column) rolls into Dennis here, since
@@ -249,18 +253,17 @@
     if(total>=0) return 0;
     const alloc=String(t.AllocationType||'').toLowerCase();
     const season=Number(t.Season||t.SourceYear||activeSeason());
-    if(alloc.includes('seat')){
+    if(alloc.includes('seat') || alloc.includes('member split')){
+      // Round the owner's total share once, not per-seat-then-sum - rounding
+      // each seat's fraction first and adding them can drift a cent off for
+      // an owner with more than one seat (e.g. Dennis's two seats) whenever
+      // the per-seat split lands on an exact half-cent.
       const seats=activeSeatsForSeason(season);
-      const per=round2(total/seats.length);
-      return round2(seats.filter(s=>s.owner===name).reduce(a=>a+per,0));
+      const ownedCount=seats.filter(s=>s.owner===name).length;
+      return round2(total*ownedCount/seats.length);
     }
     if(alloc.includes('dennis joel kyle')){
       return ['Dennis','Joel','Kyle'].includes(name)?round2(total/3):0;
-    }
-    if(alloc.includes('member split')){
-      const seats=activeSeatsForSeason(season);
-      const per=round2(total/seats.length);
-      return round2(seats.filter(s=>s.owner===name).reduce(a=>a+per,0));
     }
     if(alloc.includes('member specific') || alloc.includes('owner')){
       const members=activeMembersForSeason(season).map(m=>m.key);
@@ -279,22 +282,6 @@
   function memberBalances(){
     const rows=fundScopeRows();
     return memberKeysForCurrentScope().map(key=>({key,name:memberLabel(key),amount:settledAmount(personAmount(rows,key)),recent:personHitCount(rows,key)}));
-  }
-  function seatExpenseShare(t,seatKey){
-    const total=rowCostImpact(t);
-    if(total>=0) return 0;
-    const alloc=String(t.AllocationType||'').toLowerCase();
-    const season=Number(t.Season||t.SourceYear||activeSeason());
-    const seats=activeSeatsForSeason(season);
-    if(alloc.includes('seat') && seats.some(s=>s.key===seatKey)) return round2(total/seats.length);
-    return 0;
-  }
-  function seatNet(rows,seatKey){
-    return round2(rows.reduce((bal,t)=>bal + Number(t[seatKey]||0) + seatExpenseShare(t,seatKey),0));
-  }
-  function seatBalances(){
-    const rows=fundScopeRows();
-    return seatKeysForCurrentScope().map(key=>({key,name:seatLabel(key),owner:seatOwner(key),amount:settledAmount(seatNet(rows,key)),recent:rows.filter(t=>Math.abs(Number(t[key]||0))+Math.abs(seatExpenseShare(t,key))>0.005).length}));
   }
   function sethDirectPayoutAmount(t){
     const season=Number(t.Season||0);
@@ -315,24 +302,9 @@
     });
     return rows;
   }
-  function sharedOpportunityPersonAmount(rows,name){return round2(rows.reduce((bal,t)=>bal + rawPersonCredits(t,name),0));}
-  function sharedOpportunityBalances(){
-    const rows=sharedOpportunityRows();
-    return memberKeysForCurrentScope().map(key=>({key,name:memberLabel(key),amount:settledAmount(sharedOpportunityPersonAmount(rows,key)),recent:rows.filter(t=>Math.abs(rawPersonCredits(t,key))>0.005).length}));
-  }
-  function sharedOpportunitySettlementRows(){
-    const balances=sharedOpportunityBalances();
-    const rows=[];
-    balances.forEach(b=>{
-      if(b.amount>0.005) rows.push(['Shared Opportunity',b.name,money(b.amount),'Owed back if the shared buy closes today']);
-      if(b.amount<-0.005) rows.push([b.name,'Shared Opportunity',money(-b.amount),'Owed into the shared pool if it closes today']);
-    });
-    return rows;
-  }
-
   // ---------- money summaries (by explicit MoneyType, no guessing) ----------
   function moneySummary(rows){
-    const out={TicketSale:0,ParkingSale:0,TicketCost:0,ParkingCost:0,OtherCost:0,MemberFunding:0,Unclassified:0,count:rows.length,unclassifiedCount:0};
+    const out={TicketSale:0,ParkingSale:0,TicketCost:0,ParkingCost:0,OtherCost:0,MemberFunding:0,SharedOpportunity:0,Unclassified:0,count:rows.length,unclassifiedCount:0};
     rows.forEach(t=>{
       const mt=moneyType(t);
       if(mt==='Unclassified') out.unclassifiedCount++;
@@ -340,7 +312,7 @@
     });
     out.sales=round2(out.TicketSale+out.ParkingSale);
     out.costs=round2(out.TicketCost+out.ParkingCost+out.OtherCost);
-    out.total=round2(out.sales+out.costs+out.MemberFunding+out.Unclassified);
+    out.total=round2(out.sales+out.costs+out.MemberFunding+out.SharedOpportunity+out.Unclassified);
     return out;
   }
   function rollForwardToNextSeason(year){
@@ -438,10 +410,6 @@
     const fundPos=fundPositionFromBalances(balances);
     const settled=balances.every(b=>b.amount===0);
     const recent=recentTxns(8);
-    const sharedRows=sharedOpportunityRows();
-    const sharedBalances=sharedRows.length?sharedOpportunityBalances():[];
-    const sharedPos=sharedRows.length?fundPositionFromBalances(sharedBalances):0;
-    const sharedSettleRows=sharedRows.length?sharedOpportunitySettlementRows():[];
     const headline=settled
       ? `${card('Fund Status','Settled','everyone is paid up for '+selectedSeasonLabel())}${card('Fund Balance',money(fundPos),'cash available right now')}`
       : `${card('Fund Status','Open Balances','someone owes / is owed money')}${card('Fund Position',money(fundPos),fundPos<0?'scope is underfunded':'cash to distribute or carry forward',fundPos<0?'neg':'')}`;
@@ -449,12 +417,6 @@
       `${seasonSelectorBlock()}${unclassifiedNotice(rows)}<div class="grid two">${headline}</div>`+
       `<p class="eyebrow" style="margin-top:26px">Member Status</p><div class="grid">${balances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the fund':'owes the fund'),b.amount<0?'neg':'')).join('')}</div>`+
       (settled?'':`<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${table(['From','To','Amount','Reason'],settlementRows())}`)+
-      (sharedRows.length?(
-        `<p class="eyebrow" style="margin-top:26px">Shared Opportunity</p>`+
-        notice('<b>Kept separate from the season fund.</b> A one-off shared buy/resale pool (e.g. the Michigan away tickets), split evenly Dennis/Joel/Kyle regardless of how many seats each person owns. Covered by future resale proceeds, not the regular per-seat fund.')+
-        `<div class="grid">${sharedBalances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the pool':'owes into the pool'),b.amount<0?'neg':'')).join('')}${card('Shared Pool Position',money(sharedPos),sharedPos<0?'to be covered by future resale proceeds':'cash to distribute',sharedPos<0?'neg':'')}</div>`+
-        (sharedSettleRows.length?table(['From','To','Amount','Reason'],sharedSettleRows):'')
-      ):'')+
       `<p class="eyebrow" style="margin-top:26px">Recent Activity</p>${activityTable(recent)}`+
       (dennisView()?`<details class="card"><summary><b>Data status</b></summary>${refreshBlock()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length)+' rows.'):''}</details>`:'')+
       historyCard()
@@ -473,7 +435,7 @@
     const sharedRows=sharedOpportunityRows();
     const sharedNet=round2(sharedRows.reduce((a,t)=>a+rowTotal(t),0));
     const rollForwardNext=selectedSeasonValue()==='all'?0:rollForwardToNextSeason(selectedSeasonValue());
-    const chips=`<div class="grid two">${card('Ticket Sales',money(sm.TicketSale),'sale/resale proceeds')}${card('Parking Sales',money(sm.ParkingSale),'parking sale/resale proceeds')}${card('Ticket Costs',money(sm.TicketCost),'purchases, upgrades, fees',sm.TicketCost<0?'neg':'')}${card('Parking Costs',money(sm.ParkingCost),'parking purchases',sm.ParkingCost<0?'neg':'')}${card('Other Costs',money(sm.OtherCost),'travel/misc',sm.OtherCost<0?'neg':'')}${card('Member Funding',money(sm.MemberFunding),'top-offs, credits, opening balance')}${sharedRows.length?card('Shared Opportunity',money(sharedNet),'kept separate from the season fund',sharedNet<0?'neg':''):''}${rollForwardNext>0?card('Rolled Forward',money(rollForwardNext),'carried into next season'):''}</div>`;
+    const chips=`<div class="grid two">${card('Ticket Sales',money(sm.TicketSale),'sale/resale proceeds')}${card('Parking Sales',money(sm.ParkingSale),'parking sale/resale proceeds')}${card('Ticket Costs',money(sm.TicketCost),'purchases, upgrades, fees',sm.TicketCost<0?'neg':'')}${card('Parking Costs',money(sm.ParkingCost),'parking purchases',sm.ParkingCost<0?'neg':'')}${card('Other Costs',money(sm.OtherCost),'travel/misc',sm.OtherCost<0?'neg':'')}${card('Member Funding',money(sm.MemberFunding),'top-offs, credits, opening balance')}${sharedRows.length?card('Shared Opportunity',money(sharedNet),'one-off buys/resales split evenly, still part of the same fund',sharedNet<0?'neg':''):''}${rollForwardNext>0?card('Rolled Forward',money(rollForwardNext),'carried into next season'):''}</div>`;
     const filtered=filteredTxns();
     let body;
     if(activityGroupBy==='game'){
@@ -507,8 +469,17 @@
       const seats=activeSeatsForSeason(season);
       const per=round2(amount/seats.length);
       const byColumn={}; seats.forEach(s=>byColumn[s.key]=per);
-      const dennisTotal=round2(seats.filter(s=>s.owner==='Dennis').reduce(a=>a+per,0));
-      return {...out,...byColumn,Dennis:dennisTotal,Joel:seats.some(s=>s.owner==='Joel')?per:0,Kyle:seats.some(s=>s.owner==='Kyle')?per:0,Seth:seats.some(s=>s.owner==='Seth')?per:0,Dennis_x2:seats.some(s=>s.key==='DennisSeat2')?per:0,allocationType:'Seat Split'};
+      // rawPersonCredits() reads Dennis + Dennis_x2 together as Dennis's true
+      // total. They must sum exactly to his fair share, not just each be
+      // "per" - two independently-rounded half-cent shares can drift a cent
+      // off (e.g. -18.375 rounding the same way twice gives -36.76, not the
+      // correct -36.75). Round Dennis's total once, give the first seat its
+      // per-seat share, and let the second seat absorb the remainder.
+      const dennisSeatCount=seats.filter(s=>s.owner==='Dennis').length;
+      const dennisTotal=round2(amount*dennisSeatCount/seats.length);
+      const dennisPrimary=dennisSeatCount>0?per:0;
+      const dennisSecond=dennisSeatCount>1?round2(dennisTotal-dennisPrimary):0;
+      return {...out,...byColumn,Dennis:dennisPrimary,Dennis_x2:dennisSecond,Joel:seats.some(s=>s.owner==='Joel')?per:0,Kyle:seats.some(s=>s.owner==='Kyle')?per:0,Seth:seats.some(s=>s.owner==='Seth')?per:0,allocationType:'Seat Split'};
     }
     const key=owner==='Dennis x 2'?'Dennis_x2':owner; if(key in out) out[key]=amount;
     if(owner==='Dennis') out.DennisSeat1=amount; if(owner==='Joel') out.JoelSeat=amount; if(owner==='Kyle') out.KyleSeat=amount; if(owner==='Seth') out.SethSeat=amount; if(owner==='Dennis x 2') out.DennisSeat2=amount;
