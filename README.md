@@ -1,6 +1,36 @@
-# Hoosier Ticket Command Center — Graph-ready build
+# Hoosier Ticket Command Center
 
-This is the next-step package: a hosted mobile app that keeps the Excel workbook as the official source of truth and prepares for Microsoft Graph / OneDrive integration.
+A hosted mobile-friendly app that tracks a shared IU football season-ticket
+fund. The Excel workbook (on OneDrive) is the source of truth; the app reads
+it live via Microsoft Graph for the manager, and reads a published read-only
+JSON snapshot for other members.
+
+## Structure
+
+Three screens:
+- **Home** — fund status, who owes/is owed money, recent activity.
+- **Activity** — one filterable/groupable ledger of every transaction
+  (filter by season, money type, member, or free-text search; group by game).
+- **Manager** (Dennis only, via `?manager=1` + OneDrive sign-in) — enter
+  transactions, build reversals, publish the member snapshot.
+
+Every transaction has an explicit `MoneyType` (`TicketSale`, `ParkingSale`,
+`TicketCost`, `ParkingCost`, `OtherCost`, `MemberFunding`, `SharedOpportunity`)
+set at entry time in Manager — the app does not try to guess a transaction's
+meaning from its description text. See `CHANGELOG.md` for what changed from
+the original 8-screen build.
+
+## Migrating an existing workbook to add `MoneyType`
+
+If your `TransactionsTable` doesn't have a `MoneyType` column yet:
+1. Run `node scripts/backfill-money-type.mjs` to backfill `data/public-ledger.json`
+   and generate `scripts/output/money-type-column.txt`.
+2. Add a `MoneyType` column as the last column of the live `TransactionsTable`
+   in the OneDrive workbook.
+3. Paste the values from `money-type-column.txt` in `TxnID` order.
+4. Resize the table if needed so the new column is included.
+
+New transactions entered through Manager set `MoneyType` automatically.
 
 ## Best hosting path
 
@@ -14,14 +44,8 @@ Your home workstation can host it for your own testing, but it is not ideal for 
 2. Upload the folder to a private or carefully controlled GitHub repository.
 3. Enable GitHub Pages for the folder/repo.
 4. Open the GitHub Pages URL.
-5. The app will load `data/ledger-fallback.json` until Microsoft Graph is configured.
-
-## Current accuracy notes
-
-- Current 2026 account balance: $0.00.
-- Historical regular sales handled: $6,531.60.
-- Ticket sales and parking are shown separately.
-- 2025 postseason history includes the Big Ten Championship, Rose Bowl, Peach Bowl, and CFP National Championship.
+5. The app will load `data/public-ledger.json` (the published member snapshot)
+   until Microsoft Graph is configured and a manager signs in.
 
 ## OneDrive integration later
 
@@ -37,4 +61,7 @@ The workbook remains the source of truth until manager writeback is tested.
 
 ## Privacy
 
-This package contains real financial data in `data/ledger-fallback.json`. Do not publish the JSON publicly unless the repository/site is appropriately private or you switch the app to Graph-only reads.
+`data/public-ledger.json` contains real financial data (real dollar amounts
+and per-member breakdowns). Do not publish it in a public repository unless
+that's an intentional, informed choice — otherwise keep the repository/site
+private or switch the app to Graph-only reads.

@@ -9,12 +9,7 @@ window.HTCC_CONFIG = {
     driveId: "YOUR_DRIVE_ID",
     itemId: "YOUR_WORKBOOK_ITEM_ID",
     tables: {
-      transactions: "TransactionsTable",
-      games: "GamesTable",
-      members: "MembersTable",
-      seatAccounts: "SeatAccountsTable",
-      parkingUsage: "ParkingUsageTable",
-      seatUsage: "SeatUsageTable"
+      transactions: "TransactionsTable"
     }
   },
   scopes: ["Files.ReadWrite", "User.Read"]

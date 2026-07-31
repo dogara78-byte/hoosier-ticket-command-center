@@ -1,6 +1,6 @@
 {
   "meta": {
-    "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V2",
+    "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V3",
     "publishedAt": "2026-07-30T16:04:25.942Z",
     "rowCount": 67,
     "latestTxn": "TXN-0076",
@@ -18,7 +18,7 @@
       },
       "publishedAt": "2026-07-30T16:04:25.944Z"
     },
-    "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
+    "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages. MoneyType backfilled 2026-07-31T14:16:04.017Z."
   },
   "columns": [
     "TxnID",
@@ -46,7 +46,8 @@
     "DennisSeat2",
     "NeedsReview",
     "ReviewReason",
-    "Notes"
+    "Notes",
+    "MoneyType"
   ],
   "transactions": [
     {
@@ -75,7 +76,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: GameID should be 2024-01",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0002",
@@ -103,7 +105,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: GameID should be 2024-01",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0003",
@@ -131,7 +134,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: betting was taken from fund and tracked for history",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0004",
@@ -159,7 +163,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: ticket upgrade",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0005",
@@ -187,7 +192,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: late upgrade payments broken down per member",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0006",
@@ -215,7 +221,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: fund money used for purchase",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0007",
@@ -243,7 +250,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: corrected Resale typo",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0008",
@@ -271,7 +279,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: tracked inside ticket fund and tied to Kyle",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0009",
@@ -299,7 +308,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "Resolved by Dennis: extra money donated evenly between Dennis, Joel, and Kyle",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "SharedOpportunity"
     },
     {
       "TxnID": "TXN-0010",
@@ -327,7 +337,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0011",
@@ -355,7 +366,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0012",
@@ -383,7 +395,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0013",
@@ -411,7 +424,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0014",
@@ -439,7 +453,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0015",
@@ -467,7 +482,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0016",
@@ -495,7 +511,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0017",
@@ -523,7 +540,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0018",
@@ -551,7 +569,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Non-ticket/parking item. Confirm whether it belongs in shared fund.",
-      "Notes": "Betting-related adjustment; keep for history"
+      "Notes": "Betting-related adjustment; keep for history",
+      "MoneyType": "OtherCost"
     },
     {
       "TxnID": "TXN-0027",
@@ -579,7 +598,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "OtherCost"
     },
     {
       "TxnID": "TXN-0028",
@@ -607,7 +627,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0029",
@@ -635,7 +656,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0031",
@@ -663,7 +685,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "Includes sales, betting, B1G Championship, Seatgeek taxes"
+      "Notes": "Includes sales, betting, B1G Championship, Seatgeek taxes",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0032",
@@ -691,7 +714,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0033",
@@ -719,7 +743,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0034",
@@ -747,7 +772,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0035",
@@ -775,7 +801,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0036",
@@ -803,7 +830,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0037",
@@ -831,7 +859,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0038",
@@ -859,7 +888,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0039",
@@ -887,7 +917,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0040",
@@ -915,7 +946,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0041",
@@ -943,7 +975,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0042",
@@ -971,7 +1004,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Missing total cost in source row; total derived from member columns.",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0043",
@@ -999,7 +1033,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0044",
@@ -1027,7 +1062,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0045",
@@ -1055,7 +1091,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0046",
@@ -1083,7 +1120,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0047",
@@ -1111,7 +1149,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0048",
@@ -1139,7 +1178,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0049",
@@ -1167,7 +1207,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0050",
@@ -1195,7 +1236,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0051",
@@ -1223,7 +1265,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0052",
@@ -1251,7 +1294,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0053",
@@ -1279,7 +1323,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0054",
@@ -1307,7 +1352,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Non-football item; confirm whether it belongs in this IU football fund.",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0055",
@@ -1335,7 +1381,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0056",
@@ -1363,7 +1410,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0057",
@@ -1391,7 +1439,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0058",
@@ -1419,7 +1468,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "ParkingSale"
     },
     {
       "TxnID": "TXN-0059",
@@ -1447,7 +1497,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0060",
@@ -1475,7 +1526,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0061",
@@ -1503,7 +1555,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0062",
@@ -1531,7 +1584,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0063",
@@ -1559,7 +1613,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0064",
@@ -1587,7 +1642,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Typo in source row: Reaale. Confirm resale category is correct.",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "TicketSale"
     },
     {
       "TxnID": "TXN-0065",
@@ -1615,7 +1671,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Travel expense; confirm whether it should be tracked inside ticket fund.",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "OtherCost"
     },
     {
       "TxnID": "TXN-0066",
@@ -1643,7 +1700,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "Yes",
       "ReviewReason": "Manual top-off distribution is not exactly equal; verify intended allocation.",
-      "Notes": ""
+      "Notes": "",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0067",
@@ -1671,7 +1729,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 opening balance used first: Dennis Seat 1 $700, Joel $700, Kyle $310, Dennis Seat 2 $0."
+      "Notes": "2026 opening balance used first: Dennis Seat 1 $700, Joel $700, Kyle $310, Dennis Seat 2 $0.",
+      "MoneyType": "MemberFunding"
     },
     {
       "TxnID": "TXN-0068",
@@ -1699,7 +1758,8 @@
       "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 drawdown model: Kyle uses $310 fund first; remainder/out-of-pocket reflected here."
+      "Notes": "2026 drawdown model: Kyle uses $310 fund first; remainder/out-of-pocket reflected here.",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0072",
@@ -1727,7 +1787,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking share: $73.50 per active fund share ($294 total / 4)."
+      "Notes": "2026 parking share: $73.50 per active fund share ($294 total / 4).",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0069",
@@ -1755,7 +1816,8 @@
       "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 drawdown model: Dennis/Joel remaining fund after first installment leaves $175 ticket out-of-pocket; Kyle/Dennis x2 full ticket payment."
+      "Notes": "2026 drawdown model: Dennis/Joel remaining fund after first installment leaves $175 ticket out-of-pocket; Kyle/Dennis x2 full ticket payment.",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0073",
@@ -1783,7 +1845,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking share: $18.375 per active fund share."
+      "Notes": "2026 parking share: $18.375 per active fund share.",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0070",
@@ -1811,7 +1874,8 @@
       "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 full out-of-pocket ticket installment for all four active shares."
+      "Notes": "2026 full out-of-pocket ticket installment for all four active shares.",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0074",
@@ -1839,7 +1903,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking share: $18.375 per active fund share."
+      "Notes": "2026 parking share: $18.375 per active fund share.",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0071",
@@ -1867,7 +1932,8 @@
       "DennisSeat2": 437.5,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 full out-of-pocket ticket installment for all four active shares."
+      "Notes": "2026 full out-of-pocket ticket installment for all four active shares.",
+      "MoneyType": "TicketCost"
     },
     {
       "TxnID": "TXN-0075",
@@ -1895,7 +1961,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "2026 parking share: $18.375 per active fund share."
+      "Notes": "2026 parking share: $18.375 per active fund share.",
+      "MoneyType": "ParkingCost"
     },
     {
       "TxnID": "TXN-0076",
@@ -1923,7 +1990,8 @@
       "DennisSeat2": 0,
       "NeedsReview": "No",
       "ReviewReason": "",
-      "Notes": "Entered from Hoosier Ticket Command Center web app"
+      "Notes": "Entered from Hoosier Ticket Command Center web app",
+      "MoneyType": "SharedOpportunity"
     }
   ]
 }
