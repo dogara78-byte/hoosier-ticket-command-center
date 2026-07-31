@@ -719,7 +719,7 @@
     if(!key) return false;
     if(/^\d+$/.test(key)) return false;
     // Exclude season rollups / balance rows / fund carry rows from the game-by-game view.
-    if(/season/.test(key) && !/(vs|bowl|championship|playoff|game)/.test(key)) return false;
+    if(/\bseason\b/.test(key) && !/(vs|bowl|championship|playoff|game|postseason|shared opportunity)/.test(key)) return false;
     if(/balance|opening balance|roll[- ]?forward|fund position|member \/ fund money|fund result|carry[- ]?forward|baseline/.test(text)) return false;
     if(/ticket sales balance|parking balance|current balance|open seat balance|open parking balance/.test(text)) return false;
     if(/balance|opening balance|roll[- ]?forward/.test(cat+' '+typ)) return false;
