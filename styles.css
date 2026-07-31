@@ -65,6 +65,7 @@ h2 { margin: 0; font-size: 26px; text-transform: uppercase; line-height: 1.1; }
 .value { font-family: var(--mono); font-size: 24px; font-weight: 800; color: var(--green); }
 .value.neg { color: var(--red); }
 .sub { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.line { border-top: 1px dashed var(--line); padding-top: 8px; margin-top: 12px; display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; }
 
 /* tables */
 .table { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: auto; margin-top: 12px; }

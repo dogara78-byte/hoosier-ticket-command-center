@@ -78,6 +78,7 @@
   let publicSnapshot={loaded:false,error:null,meta:null};
   let selectedSeason='active';
   let activityGroupBy='none';
+  let memberViewKey='';
 
   const $=s=>document.querySelector(s);
   const money=n=>'$'+Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -306,6 +307,14 @@
     const rows=fundScopeRows();
     return memberKeysForCurrentScope().map(key=>({key,name:memberLabel(key),amount:settledAmount(personAmount(rows,key)),recent:personHitCount(rows,key)}));
   }
+  // Independent of the global season selector - shows one member's balance
+  // across every season at once, for their own "my account" summary.
+  function memberSeasonBreakdown(name){
+    return availableSeasons().map(season=>{
+      const rows=fundScopeRows(season);
+      return {season,amount:settledAmount(personAmount(rows,name)),rows:personHitCount(rows,name)};
+    });
+  }
   function sethDirectPayoutAmount(t){
     const season=Number(t.Season||0);
     if(!(season===2024 || season===2025)) return 0;
@@ -439,12 +448,26 @@
     layout('Home','Game Day Dashboard','Fund status for the '+selectedSeasonLabel()+' scope: who owes what, and what happened recently.',
       `${freshnessBadge()}${seasonSelectorBlock()}${unclassifiedNotice(rows)}<div class="grid two">${headline}</div>`+
       `<p class="eyebrow" style="margin-top:26px">Member Status</p><div class="grid">${balances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the fund':'owes the fund'),b.amount<0?'neg':'')).join('')}</div>`+
+      `<p class="eyebrow" style="margin-top:26px">My Account</p>${memberViewBlock()}`+
       (settled?'':`<p class="eyebrow" style="margin-top:26px">Settle Up</p><div class="card settle-card"><p class="sub">Suggested transfers to settle ${selectedSeasonLabel()} today.</p><p><button class="btn small" id="copySettleBtn" type="button">Copy summary</button></p>${table(['From','To','Amount','Reason'],settlementRows())}</div>`)+
       `<p class="eyebrow" style="margin-top:26px">Recent Activity</p>${activityTable(recent)}`+
       (dennisView()?`<details class="card"><summary><b>Data status</b></summary>${refreshBlock()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length)+' rows.'):''}</details>`:'')+
       historyCard()
     );
-    bindSeasonSelector(); bindRefresh(); bindSettleUp();
+    bindSeasonSelector(); bindRefresh(); bindSettleUp(); bindMemberView();
+  }
+  function memberViewBlock(){
+    const options=MEMBERS.map(m=>`<option value="${m.key}" ${memberViewKey===m.key?'selected':''}>${m.label}</option>`).join('');
+    const picker=`<div class="form compact"><label class="wide">View a member's season-by-season balance<select id="memberViewSelect"><option value="">Choose a member...</option>${options}</select></label></div>`;
+    if(!memberViewKey) return `<div class="card">${picker}</div>`;
+    const breakdown=memberSeasonBreakdown(memberViewKey);
+    const allSeasonsAmount=settledAmount(personAmount(fundScopeRows('all'),memberViewKey));
+    const rows=breakdown.map(b=>[String(b.season),money(b.amount),String(b.rows)]);
+    return `<div class="card">${picker}<p class="sub" style="margin-top:12px">${memberLabel(memberViewKey)}'s balance by season - independent of the season selector above.</p>${table(['Season','Balance','Rows'],rows)}<div class="line"><span>All seasons combined</span><b>${money(allSeasonsAmount)}</b></div></div>`;
+  }
+  function bindMemberView(){
+    const el=$('#memberViewSelect');
+    if(el) el.onchange=()=>{memberViewKey=el.value; show(current);};
   }
   function settlementSummaryText(rows=settlementRows()){
     if(!rows.length) return 'Everyone is settled for '+selectedSeasonLabel()+' - no transfers needed.';
@@ -755,7 +778,7 @@
     try{
       if(id==='manager'&&!dennisView()) id='home';
       const changingPage=id!==current;
-      if(changingPage){selectedSeason='active'; activityGroupBy='none';}
+      if(changingPage){selectedSeason='active'; activityGroupBy='none'; memberViewKey='';}
       current=id; renderNav();
       document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active',b.dataset.screen===id));
       (renderers[id]||renderHome)();
