@@ -438,6 +438,10 @@
     const fundPos=fundPositionFromBalances(balances);
     const settled=balances.every(b=>b.amount===0);
     const recent=recentTxns(8);
+    const sharedRows=sharedOpportunityRows();
+    const sharedBalances=sharedRows.length?sharedOpportunityBalances():[];
+    const sharedPos=sharedRows.length?fundPositionFromBalances(sharedBalances):0;
+    const sharedSettleRows=sharedRows.length?sharedOpportunitySettlementRows():[];
     const headline=settled
       ? `${card('Fund Status','Settled','everyone is paid up for '+selectedSeasonLabel())}${card('Fund Balance',money(fundPos),'cash available right now')}`
       : `${card('Fund Status','Open Balances','someone owes / is owed money')}${card('Fund Position',money(fundPos),fundPos<0?'scope is underfunded':'cash to distribute or carry forward',fundPos<0?'neg':'')}`;
@@ -445,6 +449,12 @@
       `${seasonSelectorBlock()}${unclassifiedNotice(rows)}<div class="grid two">${headline}</div>`+
       `<p class="eyebrow" style="margin-top:26px">Member Status</p><div class="grid">${balances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the fund':'owes the fund'),b.amount<0?'neg':'')).join('')}</div>`+
       (settled?'':`<p class="eyebrow" style="margin-top:26px">Suggested Settlement</p>${table(['From','To','Amount','Reason'],settlementRows())}`)+
+      (sharedRows.length?(
+        `<p class="eyebrow" style="margin-top:26px">Shared Opportunity</p>`+
+        notice('<b>Kept separate from the season fund.</b> A one-off shared buy/resale pool (e.g. the Michigan away tickets), split evenly Dennis/Joel/Kyle regardless of how many seats each person owns. Covered by future resale proceeds, not the regular per-seat fund.')+
+        `<div class="grid">${sharedBalances.map(b=>card(b.name,money(b.amount),b.amount===0?'settled':(b.amount>0?'owed back from the pool':'owes into the pool'),b.amount<0?'neg':'')).join('')}${card('Shared Pool Position',money(sharedPos),sharedPos<0?'to be covered by future resale proceeds':'cash to distribute',sharedPos<0?'neg':'')}</div>`+
+        (sharedSettleRows.length?table(['From','To','Amount','Reason'],sharedSettleRows):'')
+      ):'')+
       `<p class="eyebrow" style="margin-top:26px">Recent Activity</p>${activityTable(recent)}`+
       (dennisView()?`<details class="card"><summary><b>Data status</b></summary>${refreshBlock()}${publicSnapshot.loaded?notice('<b>Snapshot:</b> published '+fmtDateTime((publicSnapshot.meta||{}).publishedAt)+' · '+((publicSnapshot.meta||{}).rowCount||liveLedger.transactions.length)+' rows.'):''}</details>`:'')+
       historyCard()
