@@ -1,24 +1,11 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V3",
-    "publishedAt": "2026-07-30T16:04:25.942Z",
+    "publishedAt": "2026-07-31T16:58:22.940Z",
     "rowCount": 67,
     "latestTxn": "TXN-0076",
     "latestDate": 46234,
-    "summary": {
-      "season": 2026,
-      "fundBalance": 0,
-      "memberStatus": "Everyone paid up",
-      "ticketSales": 1710,
-      "parkingSales": 0,
-      "nextActivity": "First Sale",
-      "lastFundActivity": {
-        "value": "Ticket Purchase · $-480.00",
-        "sub": "IU vs Michigan · 46234"
-      },
-      "publishedAt": "2026-07-30T16:04:25.944Z"
-    },
-    "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages. MoneyType backfilled 2026-07-31T14:16:04.017Z."
+    "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
   },
   "columns": [
     "TxnID",
