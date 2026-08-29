@@ -1,10 +1,10 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V3",
-    "publishedAt": "2026-07-31T16:58:22.940Z",
-    "rowCount": 67,
-    "latestTxn": "TXN-0076",
-    "latestDate": 46234,
+    "publishedAt": "2026-08-29T09:58:00.640Z",
+    "rowCount": 68,
+    "latestTxn": "TXN-0077",
+    "latestDate": 46258,
     "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
   },
   "columns": [
@@ -1979,6 +1979,35 @@
       "ReviewReason": "",
       "Notes": "Entered from Hoosier Ticket Command Center web app",
       "MoneyType": "SharedOpportunity"
+    },
+    {
+      "TxnID": "TXN-0077",
+      "SourceYear": 2026,
+      "SourceRow": "",
+      "TxnDate": 46258,
+      "Season": 2026,
+      "GameID": "2026-01",
+      "Game": "IU vs North Texas",
+      "AssetType": "Game Ticket",
+      "Category": "Sale",
+      "TransactionType": "Ticket Sale",
+      "Description": "Ticket sale",
+      "AllocationType": "Seat Owner Only",
+      "TotalAmount": 139.5,
+      "Dennis": 139.5,
+      "Joel": 0,
+      "Kyle": 0,
+      "Seth": 0,
+      "Dennis_x2": 0,
+      "DennisSeat1": 139.5,
+      "JoelSeat": 0,
+      "KyleSeat": 0,
+      "SethSeat": 0,
+      "DennisSeat2": 0,
+      "NeedsReview": "No",
+      "ReviewReason": "",
+      "Notes": "Entered from Hoosier Ticket Command Center web app",
+      "MoneyType": "TicketSale"
     }
   ]
 }
