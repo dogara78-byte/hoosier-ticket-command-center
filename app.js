@@ -165,9 +165,31 @@
   function layout(eyebrow,title,lede,body){$('#app').innerHTML=`<section><p class="eyebrow">${eyebrow}</p><h2>${title}</h2><p class="lede">${lede}</p>${body}</section>`;}
 
   // ---------- ledger loading ----------
+  // Writing a date-like string into an Excel table cell makes Excel silently
+  // re-store it as its own date serial number (days since 1899-12-30); Graph
+  // then reads that back as a raw number like 46258 instead of "2026-08-27".
+  // Normalize once here, at the boundary where rows enter the app, so every
+  // screen/sort downstream just sees a clean date regardless of which form
+  // Excel or the JSON snapshot happens to hand back.
+  function excelSerialToISODate(serial){
+    const n=Number(serial);
+    if(!Number.isFinite(n)) return null;
+    const d=new Date((n-25569)*86400*1000);
+    return Number.isNaN(d.getTime())?null:d.toISOString().slice(0,10);
+  }
+  function normalizeTxnDate(raw){
+    if(raw===null||raw===undefined||raw==='') return '';
+    if(/^\d+(\.\d+)?$/.test(String(raw).trim())){
+      const iso=excelSerialToISODate(raw);
+      if(iso) return iso;
+    }
+    return String(raw);
+  }
   function rowToTxn(row){
     const vals=(row&&row.values&&row.values[0])||[];
-    const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=vals[i]); return obj;
+    const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=vals[i]);
+    obj.TxnDate=normalizeTxnDate(obj.TxnDate);
+    return obj;
   }
   function txDateValue(t){return t.TxnDate || '';}
   function txSortValue(t){return String(txDateValue(t)||'0000-00-00') + String(t.TxnID||'');}
@@ -187,9 +209,9 @@
   }
   function bindRefresh(){const b=$('#refreshBtn'); if(b)b.onclick=async()=>{await refreshLedger(); show(current);};}
   function normalizePublicTxn(row){
-    if(Array.isArray(row)){const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=row[i]); return obj;}
+    if(Array.isArray(row)){const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=row[i]); obj.TxnDate=normalizeTxnDate(obj.TxnDate); return obj;}
     if(row && row.values && row.values[0]) return rowToTxn(row);
-    const obj={}; TXN_COLUMNS.forEach(c=>obj[c]=(row&&row[c]!==undefined)?row[c]:''); return obj;
+    const obj={}; TXN_COLUMNS.forEach(c=>obj[c]=(row&&row[c]!==undefined)?row[c]:''); obj.TxnDate=normalizeTxnDate(obj.TxnDate); return obj;
   }
   async function loadPublicSnapshot(){
     if(connection.connected) return;
