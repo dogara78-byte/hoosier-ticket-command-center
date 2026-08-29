@@ -1,5 +1,5 @@
 (function(){
-  const VERSION = 'v2026.08.29-patch36-date-normalization';
+  const VERSION = 'v2026.06.25-patch35b-game-summaries-fix';
   const TXN_COLUMNS = ['TxnID','SourceYear','SourceRow','TxnDate','Season','GameID','Game','AssetType','Category','TransactionType','Description','AllocationType','TotalAmount','Dennis','Joel','Kyle','Seth','Dennis_x2','DennisSeat1','JoelSeat','KyleSeat','SethSeat','DennisSeat2','NeedsReview','ReviewReason','Notes'];
 
   const DATA = {
@@ -170,35 +170,18 @@
     return {season:2026,fundBalance:0,memberStatus:'Everyone paid up',ticketSales:sales,parkingSales:parkingSales,nextActivity:'First Sale',lastFundActivity:lastFundActivityDisplay(),publishedAt:new Date().toISOString()};
   }
 
-  function normalizeTxnDate(value){
-    if(value===null || value===undefined || value==='') return '';
-    const raw=String(value).trim();
-    // Microsoft Graph can return an Excel-formatted date cell as its serial number.
-    // Excel's Windows date system uses 1899-12-30 as the practical JS conversion epoch.
-    const n=Number(raw);
-    if(Number.isFinite(n) && /^\d+(?:\.\d+)?$/.test(raw) && n>=20000 && n<=80000){
-      const ms=Date.UTC(1899,11,30) + Math.floor(n)*86400000;
-      return new Date(ms).toISOString().slice(0,10);
-    }
-    if(/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0,10);
-    const parsed=new Date(raw);
-    if(!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0,10);
-    return raw;
-  }
   function rowToTxn(row){
     const vals=(row&&row.values&&row.values[0])||[];
-    const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=vals[i]);
-    obj.TxnDate=normalizeTxnDate(obj.TxnDate);
-    return obj;
+    const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=vals[i]); return obj;
   }
-  function txDateValue(t){return normalizeTxnDate(t.TxnDate || '');}
+  function txDateValue(t){return t.TxnDate || '';}
   function txSortValue(t){return String(txDateValue(t)||'0000-00-00') + String(t.TxnID||'');}
   function recentTxns(limit=10){return [...liveLedger.transactions].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);}
   function liveStats(){
     const tx=liveLedger.transactions;
     const last=recentTxns(1)[0];
     const addedFromApp=tx.filter(t=>String(t.Notes||'').includes('Hoosier Ticket Command Center')).length;
-    return {count:tx.length, lastTxn:last?last.TxnID:'—', lastDate:last?txDateValue(last):'—', addedFromApp, last};
+    return {count:tx.length, lastTxn:last?last.TxnID:'—', lastDate:last?last.TxnDate:'—', addedFromApp, last};
   }
   function lastFundActivityDisplay(){
     const tx = recentTxns(1)[0];
@@ -208,7 +191,7 @@
     const category = tx.Category || tx.TransactionType || tx.AssetType || 'Fund activity';
     const amount = money(rowTotal(tx));
     const detail = tx.Game || tx.Description || tx.TransactionType || '';
-    const date = txDateValue(tx);
+    const date = tx.TxnDate || '';
     return { value:`${category} · ${amount}`, sub:[detail,date].filter(Boolean).join(' · ') };
   }
   async function refreshLedger(){
@@ -236,7 +219,7 @@
   function bindRefresh(){const b=$('#refreshBtn'); if(b)b.onclick=async()=>{await refreshLedger(); show(current);};}
   function recentTransactionsBlock(limit=10){
     if(!liveLedger.loaded) return refreshBlock();
-    const rows=recentTxns(limit).map(t=>[t.TxnID,txDateValue(t),t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]);
+    const rows=recentTxns(limit).map(t=>[t.TxnID,t.TxnDate,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]);
     return `${dennisView()?'<p class="eyebrow" style="margin-top:26px">Recent Ledger Activity</p>'+refreshBlock():'<p class="eyebrow" style="margin-top:26px">Recent Money Moves</p>'}${dennisView()?table(['TxnID','Date','Game/Event','Asset','Category','Total','Allocation'],rows):memberActivityTable(recentTxns(limit),limit)}`;
   }
   function uniqueTxValues(field){return [...new Set(liveLedger.transactions.map(t=>t[field]).filter(v=>v!==undefined&&v!==null&&String(v).trim()!==''))].sort((a,b)=>String(a).localeCompare(String(b)));}
@@ -258,12 +241,12 @@
   function transactionFiltersBlock(limit=25){
     if(!liveLedger.loaded) return refreshBlock();
     const seasons=uniqueTxValues('Season'); const assets=uniqueTxValues('AssetType');
-    const rows=filteredTxns().slice(0,limit).map(t=>[t.TxnID,txDateValue(t),t.Season,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]);
+    const rows=filteredTxns().slice(0,limit).map(t=>[t.TxnID,t.TxnDate,t.Season,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]);
     return `<p class="eyebrow" style="margin-top:26px">Transaction filters</p><div class="card"><div class="form compact"><label>Season<select id="filterSeason"><option>All</option>${seasons.map(x=>`<option>${x}</option>`).join('')}</select></label><label>Asset<select id="filterAsset"><option>All</option>${assets.map(x=>`<option>${x}</option>`).join('')}</select></label><label>Member<select id="filterMember"><option>All</option><option>Dennis</option><option>Joel</option><option>Kyle</option><option>Seth</option></select></label><label class="wide">Search<input id="filterSearch" placeholder="game, category, TXN ID"></label></div><p><button class="btn small" id="applyFiltersBtn">Apply filters</button></p></div>${table(['TxnID','Date','Season','Game/Event','Asset','Category','Total','Allocation'],rows)}`;
   }
   function bindFilters(){['filterSeason','filterAsset','filterMember','filterSearch'].forEach(id=>{const el=$('#'+id); if(el){el.onchange=()=>show(current); if(id==='filterSearch')el.onkeyup=e=>{if(e.key==='Enter')show(current);};}}); const b=$('#applyFiltersBtn'); if(b)b.onclick=()=>show(current);}
   function allocationPreviewTable(p){const a=p.allocation; return table(['Bucket','Amount'],[['Total',money(p.totalAmount)],['Dennis',money(a.Dennis)],['Joel',money(a.Joel)],['Kyle',money(a.Kyle)],['Seth',money(a.Seth)],['Dennis x 2',money(a.Dennis_x2)],['Dennis Seat 1',money(a.DennisSeat1)],['Joel Seat',money(a.JoelSeat)],['Kyle Seat',money(a.KyleSeat)],['Seth Seat',money(a.SethSeat)],['Dennis Seat 2',money(a.DennisSeat2)]]);}
-  function reversalOptions(){return recentTxns(20).map(t=>`<option value="${t.TxnID}">${t.TxnID} · ${txDateValue(t)} · ${t.Description||t.Game||''} · ${money(t.TotalAmount)}</option>`).join('');}
+  function reversalOptions(){return recentTxns(20).map(t=>`<option value="${t.TxnID}">${t.TxnID} · ${t.TxnDate} · ${t.Description||t.Game||''} · ${money(t.TotalAmount)}</option>`).join('');}
   function txnById(id){return liveLedger.transactions.find(t=>String(t.TxnID)===String(id));}
 
 
@@ -507,7 +490,7 @@
     return table(['Date','Activity','Game/Event','Category','Amount'],picked.map(t=>{
       const activity=activityKind(t);
       const event=t.Game || t.Description || t.TransactionType || '';
-      return [txDateValue(t), activity, event, t.Category || t.TransactionType || '', money(activityDisplayAmount(t))];
+      return [t.TxnDate || '', activity, event, t.Category || t.TransactionType || '', money(activityDisplayAmount(t))];
     }));
   }
 
@@ -515,7 +498,7 @@
   function auditTxnTable(rows,limit=12){
     const picked=[...rows].sort((a,b)=>txSortValue(b).localeCompare(txSortValue(a))).slice(0,limit);
     if(!picked.length) return notice('<b>Audit:</b> no rows in this scope.');
-    return table(['TxnID','Date','Season','Game/Event','Asset','Category','Total','Allocation'],picked.map(t=>[t.TxnID,txDateValue(t),t.Season,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]));
+    return table(['TxnID','Date','Season','Game/Event','Asset','Category','Total','Allocation'],picked.map(t=>[t.TxnID,t.TxnDate,t.Season,t.Game||t.Description,t.AssetType,t.Category,money(t.TotalAmount),t.AllocationType]));
   }
   function personCreditTotal(rows,name){return round2(rows.reduce((a,t)=>a+rawPersonCredits(t,name),0));}
   function personExpenseTotal(rows,name){return round2(rows.reduce((a,t)=>a+expenseShareByPerson(t,name),0));}
@@ -706,7 +689,7 @@
       const bucketRows=grouped[bucket];
       const subtotal=round2(bucketRows.reduce((a,t)=>a+Number(t._amount||0),0));
       const body=bucketRows.map(t=>[
-        txDateValue(t),
+        t.TxnDate||'',
         t.Game||t.Description||'',
         t.Category||'',
         t.Description||'',
@@ -750,7 +733,7 @@
       map.get(key).push(t);
     });
     return [...map.entries()].map(([key,groupRows])=>{
-      const dates=groupRows.map(t=>String(txDateValue(t)||'')).filter(Boolean).sort();
+      const dates=groupRows.map(t=>String(t.TxnDate||'')).filter(Boolean).sort();
       const latest=dates.length?dates[dates.length-1]:'';
       const earliest=dates.length?dates[0]:'';
       return {key,rows:groupRows,latest,earliest};
@@ -791,7 +774,7 @@
     const sharedRows=rows.filter(t=>t._bucket==='Shared Opportunity');
     const seasonRows=rows.filter(t=>t._bucket!=='Shared Opportunity');
     const detailRows=rows.map(t=>[
-      txDateValue(t),
+      t.TxnDate||'',
       t._bucket,
       t.Category||t.TransactionType||'',
       t.Description||t.Game||'',
@@ -952,9 +935,9 @@
   function bindManager(){const today=new Date().toISOString().slice(0,10); $('#txDate').value=today; $('#txPreset').onchange=applyPreset; applyPreset(); $('#previewBtn').onclick=previewCurrent; $('#buildReversalBtn')&&($('#buildReversalBtn').onclick=buildReversalFromSelected); $('#refreshManagerBtn').onclick=async()=>{await refreshLedger(); show('manager');}; const ps=$('#publishSnapshotBtn'); if(ps)ps.onclick=downloadPublicSnapshot; $('#appendBtn').onclick=async()=>{try{if(!window.HTCC_GRAPH||!window.HTCC_GRAPH.appendTransaction)throw new Error('Graph writeback client not loaded.'); const p=buildTransactionPreview(); const errs=validationErrors(p); if(errs.length)throw new Error(errs.join(' ')); if(!confirm('Append '+money(p.totalAmount)+' as '+p.category+' / '+p.allocationType+'?')) return; $('#previewBox').textContent='Appending row to OneDrive...'; const txnId=await window.HTCC_GRAPH.nextTransactionId(); const row=buildTransactionRow(txnId,p); const result=await window.HTCC_GRAPH.appendTransaction(row); liveLedger.lastWrite={txnId,row,result,at:new Date()}; await refreshLedger(); $('#previewBox').textContent=JSON.stringify({status:'Appended and refreshed from OneDrive TransactionsTable',txnId,row,graphResult:result,liveRows:liveLedger.transactions.length},null,2); alert('Appended '+txnId+' and refreshed workbook data.'); show('manager');}catch(e){console.error('Append failed',e); $('#previewBox').textContent='Append failed: '+(e.message||String(e)); alert('Append failed: '+(e.message||String(e)));}};}
 
   function normalizePublicTxn(row){
-    if(Array.isArray(row)){const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=row[i]); obj.TxnDate=normalizeTxnDate(obj.TxnDate); return obj;}
+    if(Array.isArray(row)){const obj={}; TXN_COLUMNS.forEach((c,i)=>obj[c]=row[i]); return obj;}
     if(row && row.values && row.values[0]) return rowToTxn(row);
-    const obj={}; TXN_COLUMNS.forEach(c=>obj[c]=(row&&row[c]!==undefined)?row[c]:''); obj.TxnDate=normalizeTxnDate(obj.TxnDate); return obj;
+    const obj={}; TXN_COLUMNS.forEach(c=>obj[c]=(row&&row[c]!==undefined)?row[c]:''); return obj;
   }
   async function loadPublicSnapshot(){
     if(connection.connected) return;
