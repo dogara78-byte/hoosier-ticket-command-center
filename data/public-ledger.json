@@ -1,10 +1,10 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V3",
-    "publishedAt": "2026-08-29T09:58:00.640Z",
+    "publishedAt": "2026-08-29T11:04:48.733Z",
     "rowCount": 68,
     "latestTxn": "TXN-0077",
-    "latestDate": 46258,
+    "latestDate": "2026-08-24",
     "notice": "Read-only member dashboard snapshot. Public if hosted on public GitHub Pages."
   },
   "columns": [
@@ -1955,7 +1955,7 @@
       "TxnID": "TXN-0076",
       "SourceYear": 2026,
       "SourceRow": "",
-      "TxnDate": 46234,
+      "TxnDate": "2026-07-31",
       "Season": 2026,
       "GameID": "",
       "Game": "IU vs Michigan",
@@ -1984,7 +1984,7 @@
       "TxnID": "TXN-0077",
       "SourceYear": 2026,
       "SourceRow": "",
-      "TxnDate": 46258,
+      "TxnDate": "2026-08-24",
       "Season": 2026,
       "GameID": "2026-01",
       "Game": "IU vs North Texas",
