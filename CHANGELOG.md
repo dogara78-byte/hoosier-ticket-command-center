@@ -1,5 +1,22 @@
 # Changelog
 
+## v3.2.0 — Pending vs. realized payouts
+
+- Sales can now be entered as **Pending** (payout not received yet - e.g. a
+  marketplace resale that pays out 5-7 days after the game) via a new
+  `PayoutStatus` field. Pending sales are recorded and visible everywhere,
+  but don't count toward the real fund balance/Member Status until confirmed.
+- New "Confirm pending payout received" preset in Manager: pick the pending
+  sale, build a confirming row for when the money actually lands. Same
+  append-only pattern as the existing Reversal helper - the original pending
+  row is never edited, just offset by a second entry once realized.
+- Home gets a "Pending Payouts" section (only shown when relevant); Activity
+  gets a separate "Pending Payouts" total, kept out of the Ticket/Parking
+  Sales totals so they always reflect real, spendable money.
+- `PayoutStatus` defaults to `Received` when blank, so no backfill was needed
+  for existing rows - only new/future entries need the column to exist in the
+  live workbook (see README's migration note).
+
 ## v3.1.0 — One fund, auto-publish, dark mode
 
 - **Unified the fund model**: `SharedOpportunity` (postseason/away/single-game

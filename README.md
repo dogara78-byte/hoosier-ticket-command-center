@@ -32,6 +32,21 @@ If your `TransactionsTable` doesn't have a `MoneyType` column yet:
 
 New transactions entered through Manager set `MoneyType` automatically.
 
+## Adding `PayoutStatus` (pending vs. realized sales)
+
+A sale can be entered as **Pending** (payout not received yet, e.g. a
+marketplace resale that pays out 5-7 days after the game) so it's visible
+without inflating the real fund balance until the money actually lands. This
+uses a `PayoutStatus` column (`Received`/`Pending`), which defaults to
+`Received` when blank — **no backfill needed** for existing rows. Before
+entering a Pending sale through Manager, add a `PayoutStatus` column as the
+new last column of the live `TransactionsTable` in the OneDrive workbook (no
+values need to be pasted into existing rows — they can stay blank).
+
+When the payout arrives, use Manager's "Confirm pending payout received"
+preset to pick the original pending sale and build a confirming row — same
+append-only pattern as Reversal. The original pending row is never edited.
+
 ## Best hosting path
 
 Use **GitHub Pages** first. It gives the app a real HTTPS URL, which is required for a smooth Microsoft sign-in redirect. Do not share it by opening the HTML file directly from OneDrive preview or a ZIP.
