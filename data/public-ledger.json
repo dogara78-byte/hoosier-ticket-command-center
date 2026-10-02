@@ -1,7 +1,7 @@
 {
   "meta": {
     "format": "HTCC_PUBLIC_LEDGER_SNAPSHOT_V3",
-    "publishedAt": "2026-09-24T01:40:23.261Z",
+    "publishedAt": "2026-10-02T19:47:49.561Z",
     "rowCount": 73,
     "latestTxn": "TXN-0080",
     "latestDate": "2026-10-16",
@@ -2196,7 +2196,7 @@
       "ReviewReason": "",
       "Notes": "Entered from Hoosier Ticket Command Center web app",
       "MoneyType": "TicketSale",
-      "PayoutStatus": "Pending"
+      "PayoutStatus": ""
     },
     {
       "TxnID": "TXN-0082",
@@ -2226,7 +2226,7 @@
       "ReviewReason": "",
       "Notes": "Entered from Hoosier Ticket Command Center web app",
       "MoneyType": "TicketSale",
-      "PayoutStatus": "Pending"
+      "PayoutStatus": ""
     }
   ]
 }
